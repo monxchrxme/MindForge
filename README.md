@@ -1,2 +1,2 @@
 # MindForge
-AI powered Obsidian pluggin for better studying 
+AI powered Obsidian plugin for better studying 
