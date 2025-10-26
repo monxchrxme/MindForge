@@ -6,7 +6,7 @@ import operator
 from langchain_gigachat.chat_models import GigaChat
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
-from langgraph.graph import StateGraph, END, STARTgit
+from langgraph.graph import StateGraph, END, START
 
 load_dotenv()
 
