@@ -4,3 +4,4 @@ langgraph==0.2.45
 gigachat==0.1.36
 python-dotenv==1.0.0
 pydantic==2.9.2
+python==3.11
