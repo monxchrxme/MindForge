@@ -19,6 +19,8 @@ def create_gigachat_client():
     )
 
 llm = create_gigachat_client()
+test_response = llm.invoke([HumanMessage(content="Привет! Ты работаешь?")])
+print("🤖 GigaChat ответил:", test_response.content)
 
 
 
