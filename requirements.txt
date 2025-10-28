@@ -1,8 +1,23 @@
+# Core dependencies
 jupyter==1.0.0
 langchain==0.3.7
 langgraph==0.2.45
-python-dotenv==1.0.0
-pydantic==2.9.2
 langchain-gigachat==0.3.12
 pyyaml==6.0
 pytest==7.4.0
+langchain-core==0.3.21
+
+# Vector store and embeddings
+faiss-cpu==1.9.0.post1
+numpy==1.26.4
+
+# Utilities
+pydantic==2.9.2
+python-dotenv==1.0.0
+
+# Optional: для логирования и мониторинга
+loguru==0.7.3
+
+# Optional: для веб-поиска
+requests==2.32.3
+beautifulsoup4==4.12.3

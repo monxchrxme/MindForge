@@ -1,14 +1,13 @@
 """
-Главная точка входа приложения
-Демонстрирует работу Parser Agent (пока без Quiz Agent)
+Пример использования LangGraph Workflow
 """
 
+import os
 import logging
-import sys
-from pathlib import Path
+from dotenv import load_dotenv
+import json
 
-from .agents.parser_agent import ParserAgent
-from .utils.helpers import load_note
+from .langgraph.workflow import QuizGenerationWorkflow
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,69 +16,105 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Загрузка переменных окружения
+load_dotenv()
 
 def main():
-    """
-    Главная функция для демонстрации Parser Agent
-    Аналогично твоему коду тестирования из ноутбука
-    """
-    print("\n" + "=" * 60)
-    print("OBSIDIAN QUIZ PLUGIN - PARSER AGENT DEMO")
-    print("=" * 60 + "\n")
+    """Основная функция"""
 
-    # Проверка аргументов командной строки
-    if len(sys.argv) < 2:
-        print("Использование: python -m src.main <путь_к_заметке>")
-        print("\nПример:")
-        print("  python -m src.main data/sample_notes/sample_lecture.txt")
-        sys.exit(1)
+    # Получаем credentials
+    gigachat_credentials = os.getenv("GIGACHAT_CREDENTIALS")
+    if not gigachat_credentials:
+        raise ValueError("GIGACHAT_CREDENTIALS не найден в .env файле")
 
-    note_path = sys.argv[1]
-
-    try:
-        # Загрузка заметки (аналогично твоему open())
-        logger.info(f"Загрузка заметки: {note_path}")
-        lecture_text = load_note(note_path)
-
-        # Инициализация state (как в твоем коде)
-        state = {
-            "lecture_text": lecture_text,
-            "key_facts": [],
-            "quiz_questions": [],
-            "messages": [],
-            "current_step": "start"
+    # Конфигурация Quiz Agent
+    quiz_config = {
+        "gigachat": {
+            "api_key": gigachat_credentials,
+            "model": "GigaChat",
+            "temperature": 0.7
+        },
+        "quiz": {
+            "num_questions": 7,
+            "question_types": [
+                "multiple_choice",
+                "true_false",
+                "short_answer"
+            ]
         }
+    }
 
-        # Создание и запуск Parser Agent
-        logger.info("Инициализация Parser Agent...")
-        parser = ParserAgent()
+    # Создаем workflow
+    workflow = QuizGenerationWorkflow(
+        gigachat_credentials=gigachat_credentials,
+        quiz_config=quiz_config,
+        use_rag=True,  # Включаем RAG
+        enable_web_search=False  # Веб-поиск выключен (опционально)
+    )
 
-        logger.info("Запуск парсинга...")
-        result_state = parser.process(state)
+    # Пример текста лекции
+    lecture_text = """
+    Производная функции - одно из фундаментальных понятий математического анализа.
+    
+    Производная функции f(x) в точке x₀ определяется как предел отношения приращения 
+    функции к приращению аргумента при стремлении приращения аргумента к нулю:
+    
+    f'(x₀) = lim(Δx→0) [f(x₀ + Δx) - f(x₀)] / Δx
+    
+    Геометрический смысл производной: производная в точке равна угловому коэффициенту 
+    касательной к графику функции в этой точке (тангенсу угла наклона).
+    
+    Основные правила дифференцирования:
+    1. Производная константы: (C)' = 0
+    2. Производная степенной функции: (x^n)' = n·x^(n-1)
+    3. Производная суммы: (f + g)' = f' + g'
+    4. Производная произведения: (f·g)' = f'·g + f·g'
+    5. Производная частного: (f/g)' = (f'·g - f·g') / g²
+    
+    Физический смысл производной: если s(t) - путь, пройденный телом за время t,
+    то s'(t) - это мгновенная скорость тела в момент времени t.
+    """
 
-        # Вывод результатов (как в твоем коде)
-        print("\n" + "=" * 60)
-        print("РЕЗУЛЬТАТЫ ПАРСИНГА")
-        print("=" * 60 + "\n")
+    # Запуск workflow
+    logger.info("Запуск генерации квиза...")
+    result = workflow.run(lecture_text)
 
-        print(f"Извлечено фактов: {len(result_state['key_facts'])}\n")
+    # Проверка на ошибки
+    if result.get("error"):
+        logger.error(f"Workflow завершился с ошибкой: {result['error']}")
+        return
 
-        for i, fact in enumerate(result_state['key_facts'], 1):
-            print(f"{i}. ✓ {fact}")
+    # Вывод результатов
+    print("\n" + "="*70)
+    print("РЕЗУЛЬТАТЫ")
+    print("="*70)
 
-        print("\n" + "=" * 60)
-        print("СТАТУС: Parser Agent работает успешно!")
-        print("=" * 60)
+    print(f"\n📝 ИЗВЛЕЧЕННЫЕ ФАКТЫ ({len(result['key_facts'])}):")
+    for i, fact in enumerate(result['key_facts'], 1):
+        print(f"{i}. {fact}")
 
-        # TODO: После реализации Quiz Agent добавить генерацию квиза
-        print("\n⚠️  Quiz Agent пока не реализован (будет добавлен на следующем этапе)")
+    if result.get('quiz_questions'):
+        print(f"\n❓ СГЕНЕРИРОВАННЫЕ ВОПРОСЫ ({len(result['quiz_questions'])}):")
+        for i, q in enumerate(result['quiz_questions'], 1):
+            print(f"\n--- Вопрос {i} ---")
+            print(f"Тип: {q['question_type']}")
+            print(f"Сложность: {q['difficulty']}")
+            print(f"Вопрос: {q['question_text']}")
+            if q.get('options'):
+                print("Варианты:")
+                for opt in q['options']:
+                    print(f"  - {opt}")
+            print(f"Правильный ответ: {q['correct_answer']}")
+            print(f"Объяснение: {q['explanation']}")
 
-    except FileNotFoundError as e:
-        logger.error(f"Ошибка: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Непредвиденная ошибка: {e}", exc_info=True)
-        sys.exit(1)
+    # Сохранение результатов
+    with open("quiz_result.json", "w", encoding="utf-8") as f:
+        json.dump({
+            "key_facts": result['key_facts'],
+            "quiz_questions": result['quiz_questions']
+        }, f, ensure_ascii=False, indent=2)
+
+    logger.info("\n✓ Результаты сохранены в quiz_result.json")
 
 
 if __name__ == "__main__":
