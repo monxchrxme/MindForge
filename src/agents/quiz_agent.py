@@ -132,13 +132,14 @@ class QuizAgent(BaseAgent):
         Args:
             config: конфигурация системы из config.yaml
         """
-        super().__init__(config, "QuizAgent")
+        # ИСПРАВЛЕНО: вызываем super().__init__ только с agent_name
+        super().__init__("QuizAgent", config)
+
+        # Сохраняем config как атрибут
+        self.config = config
 
         # Инициализация GigaChat клиента
-        self.llm_client = create_gigachat_quiz_client(
-           # api_key=config['gigachat']['api_key'],
-            #model=config['gigachat'].get('model', 'GigaChat')
-        )
+        self.llm_client = create_gigachat_quiz_client()
 
         # Параметры генерации квиза
         self.num_questions = config['quiz'].get('num_questions', 7)
@@ -187,13 +188,17 @@ class QuizAgent(BaseAgent):
 
         # Распределяем вопросы по концепциям
         questions_distribution = self._distribute_questions(concepts)
-        logger.debug(f"Распределение вопросов: {questions_distribution}")
+
+        # Логируем распределение с безопасным доступом к атрибутам
+        dist_log = [(getattr(c, 'title', str(c)[:30]), n) for c, n in questions_distribution]
+        logger.debug(f"Распределение вопросов: {dist_log}")
 
         # Генерация вопросов для каждой концепции
         all_questions = []
 
-        for concept, num_questions in questions_distribution.items():
-            logger.info(f"Генерация {num_questions} вопросов для концепции: {concept.title}")
+        for concept, num_questions in questions_distribution:  # ИЗМЕНЕНО: распаковка кортежа
+            concept_title = getattr(concept, 'title', 'Unknown')
+            logger.info(f"Генерация {num_questions} вопросов для концепции: {concept_title}")
 
             try:
                 concept_questions = self._generate_questions_for_concept(
@@ -204,11 +209,18 @@ class QuizAgent(BaseAgent):
                 logger.info(f"Успешно сгенерировано {len(concept_questions)} вопросов")
 
             except Exception as e:
-                logger.error(f"Ошибка генерации вопросов для '{concept.title}': {e}")
+                logger.error(f"Ошибка генерации вопросов для '{concept_title}': {e}")
+                import traceback
+                traceback.print_exc()
                 # Продолжаем с другими концепциями
                 continue
 
         # Проверка минимального количества вопросов
+        if len(all_questions) == 0:
+            logger.error("Не удалось сгенерировать ни одного вопроса!")
+            # Возвращаем пустой квиз вместо ошибки
+            return Quiz(questions=[], total_questions=0)
+
         if len(all_questions) < self.num_questions // 2:
             logger.warning(
                 f"Сгенерировано мало вопросов: {len(all_questions)} из {self.num_questions}"
@@ -238,7 +250,7 @@ class QuizAgent(BaseAgent):
         self.log_output(quiz)
         return quiz
 
-    def _distribute_questions(self, concepts: List[Any]) -> Dict[Any, int]:
+    def _distribute_questions(self, concepts: List[Any]) -> List[tuple]:
         """
         Распределение количества вопросов по концепциям
 
@@ -246,39 +258,43 @@ class QuizAgent(BaseAgent):
             concepts: список концепций из Parser Agent
 
         Returns:
-            словарь {концепция: количество_вопросов}
+            список кортежей (концепция, количество_вопросов)
         """
         # Базовое распределение: равномерно
         base_questions = self.num_questions // len(concepts)
         remainder = self.num_questions % len(concepts)
 
-        distribution = {}
+        distribution = []  # ИЗМЕНЕНО: список кортежей вместо словаря
 
         # Сортируем концепции по важности (high > medium > low)
         importance_order = {'high': 3, 'medium': 2, 'low': 1}
         sorted_concepts = sorted(
             concepts,
-            key=lambda c: importance_order.get(c.importance, 1),
+            key=lambda c: importance_order.get(getattr(c, 'importance', 'medium'), 1),
             reverse=True
         )
 
         for i, concept in enumerate(sorted_concepts):
             # Больше вопросов для важных концепций
             extra = 1 if i < remainder else 0
-            importance_bonus = 1 if concept.importance == 'high' and base_questions > 0 else 0
+            importance = getattr(concept, 'importance', 'medium')
+            importance_bonus = 1 if importance == 'high' and base_questions > 0 else 0
 
             num_questions = base_questions + extra + importance_bonus
-            distribution[concept] = max(1, num_questions)  # Минимум 1 вопрос
+            num_questions = max(1, num_questions)  # Минимум 1 вопрос
+
+            distribution.append((concept, num_questions))  # ИЗМЕНЕНО: кортеж
 
         # Нормализация до точного количества
-        total = sum(distribution.values())
+        total = sum(num for _, num in distribution)
         if total > self.num_questions:
             # Убираем лишние вопросы у менее важных концепций
-            for concept in reversed(sorted_concepts):
+            for i in range(len(distribution) - 1, -1, -1):
                 if total <= self.num_questions:
                     break
-                if distribution[concept] > 1:
-                    distribution[concept] -= 1
+                concept, num = distribution[i]
+                if num > 1:
+                    distribution[i] = (concept, num - 1)
                     total -= 1
 
         return distribution
@@ -303,24 +319,27 @@ class QuizAgent(BaseAgent):
         # Определяем типы вопросов для этой концепции
         question_types_to_use = self._select_question_types(num_questions)
 
+        # Безопасное извлечение атрибутов концепции
+        concept_title = getattr(concept, 'title', 'Unknown Concept')
+
         for i, question_type in enumerate(question_types_to_use):
             logger.debug(
                 f"Генерация вопроса {i + 1}/{num_questions} "
-                f"типа '{question_type}' для '{concept.title}'"
+                f"типа '{question_type}' для '{concept_title}'"
             )
 
             try:
-                # Построение промпта с few-shot примерами [web:74][web:77]
+                # Построение промпта с few-shot примерами
                 prompt = self._build_question_prompt(
                     concept=concept,
                     question_type=question_type,
                     question_number=i + 1
                 )
 
-                # Генерация через GigaChat с structured output [web:60]
+                # Генерация через GigaChat с structured output
                 question = self._generate_single_question(
                     prompt=prompt,
-                    concept_title=concept.title
+                    concept_title=concept_title
                 )
 
                 questions.append(question)
@@ -328,7 +347,7 @@ class QuizAgent(BaseAgent):
             except Exception as e:
                 logger.error(
                     f"Ошибка генерации вопроса {i + 1} "
-                    f"для '{concept.title}': {e}"
+                    f"для '{concept_title}': {e}"
                 )
                 # Пропускаем проблемный вопрос
                 continue
@@ -351,7 +370,9 @@ class QuizAgent(BaseAgent):
             Question объект
         """
         try:
-            # Используем structured output для надежного парсинга [web:3][web:60]
+            logger.debug(f"Отправка запроса в GigaChat для концепции: {concept_title}")
+
+            # Используем structured output для надежного парсинга
             question = self.llm_client.generate_structured(
                 prompt=prompt,
                 response_model=Question,
@@ -361,12 +382,16 @@ class QuizAgent(BaseAgent):
             # Добавляем ссылку на концепцию
             question.concept_reference = concept_title
 
+            logger.info(f"✓ Вопрос успешно сгенерирован для '{concept_title}'")
             return question
 
         except Exception as e:
-            logger.error(f"Ошибка вызова GigaChat API: {e}")
-            # Fallback: парсим текстовый ответ вручную
-            return self._fallback_question_parsing(prompt, concept_title)
+            logger.error(f"✗ Ошибка вызова GigaChat API для '{concept_title}': {e}")
+            import traceback
+            traceback.print_exc()
+
+            # Возбуждаем исключение вместо fallback
+            raise
 
     def _fallback_question_parsing(
             self,
@@ -378,22 +403,32 @@ class QuizAgent(BaseAgent):
         """
         logger.warning("Использование fallback генерации")
 
-        response_text = self.llm_client.generate(
-            prompt=prompt,
-            temperature=self.temperature
-        )
+        try:
+            response_text = self.llm_client.generate(
+                prompt=prompt,
+                temperature=self.temperature
+            )
 
-        # Простой парсинг текста
-        # В реальной ситуации здесь должна быть более сложная логика
-        return Question(
-            question_text="Что такое " + concept_title + "?",
-            question_type="short_answer",
-            options=[],
-            correct_answer="См. описание концепции",
-            explanation="Вопрос сгенерирован в fallback режиме",
-            difficulty="medium",
-            concept_reference=concept_title
-        )
+            # Попытка извлечь JSON вручную
+            import json
+            json_str = self.llm_client._extract_json(response_text)
+            question_dict = json.loads(json_str)
+
+            return Question(**question_dict)
+
+        except Exception as e:
+            logger.error(f"Fallback тоже не сработал: {e}")
+
+            # Возвращаем заглушку
+            return Question(
+                question_text=f"Что такое {concept_title}?",
+                question_type="short_answer",
+                options=[],
+                correct_answer="См. описание концепции",
+                explanation="Вопрос сгенерирован в fallback режиме из-за ошибки API",
+                difficulty="medium",
+                concept_reference=concept_title
+            )
 
     # ========================================================================
     # ПРОМПТ ИНЖЕНЕРИНГ
@@ -406,13 +441,7 @@ class QuizAgent(BaseAgent):
             question_number: int
     ) -> str:
         """
-        Построение промпта для генерации вопроса [web:70][web:73][web:82]
-
-        Использует best practices:
-        - Четкие инструкции [web:70]
-        - Few-shot примеры [web:74][web:77]
-        - Контекст [web:82]
-        - Специфичность [web:73]
+        Построение промпта для генерации вопроса
 
         Args:
             concept: концепция для вопроса
@@ -422,47 +451,53 @@ class QuizAgent(BaseAgent):
         Returns:
             готовый промпт
         """
-        # Few-shot примеры для конкретного типа [web:71][web:74]
+        # Few-shot примеры для конкретного типа
         examples = self.few_shot_examples.get(question_type, "")
+
+        # Безопасное извлечение атрибутов концепции
+        title = getattr(concept, 'title', 'Unknown')
+        description = getattr(concept, 'description', 'No description')
+        importance = getattr(concept, 'importance', 'medium')
+        context = getattr(concept, 'context', description)
 
         # Основной промпт
         prompt = f"""Ты — эксперт по созданию образовательных тестов и квизов.
 
-КОНТЕКСТ:
-Тебе нужно создать вопрос для закрепления материала студентом.
+    КОНТЕКСТ:
+    Тебе нужно создать вопрос для закрепления материала студентом.
 
-КОНЦЕПЦИЯ:
-Название: {concept.title}
-Описание: {concept.description}
-Важность: {concept.importance}
-Контекст из лекции: {concept.context}
+    КОНЦЕПЦИЯ:
+    Название: {title}
+    Описание: {description}
+    Важность: {importance}
+    Контекст из лекции: {context}
 
-ЗАДАЧА:
+    ЗАДАЧА:
 Создай качественный вопрос типа "{question_type}" по этой концепции.
 
-ПРИМЕРЫ ХОРОШИХ ВОПРОСОВ:
-{examples}
+    ПРИМЕРЫ ХОРОШИХ ВОПРОСОВ:
+    {examples}
 
-ТРЕБОВАНИЯ:
-1. Вопрос должен проверять ПОНИМАНИЕ концепции, а не просто запоминание
-2. Формулировка должна быть ЧЕТКОЙ и ОДНОЗНАЧНОЙ
-3. {"Предложи 4 варианта ответа (A, B, C, D), где только один правильный" if question_type == "multiple_choice" else ""}
-4. {"Сформулируй утверждение, которое может быть правдой или ложью" if question_type == "true_false" else ""}
-5. Добавь краткое объяснение (1-2 предложения), почему ответ правильный
-6. Оцени сложность вопроса: easy (простой факт), medium (требует понимания), hard (требует анализа)
-7. Избегай двусмысленности и трюковых формулировок
+    ТРЕБОВАНИЯ:
+    1. Вопрос должен проверять ПОНИМАНИЕ концепции, а не просто запоминание
+    2. Формулировка должна быть ЧЕТКОЙ и ОДНОЗНАЧНОЙ
+    3. {"Предложи 4 варианта ответа (A, B, C, D), где только один правильный" if question_type == "multiple_choice" else ""}
+    4. {"Сформулируй утверждение, которое может быть правдой или ложью" if question_type == "true_false" else ""}
+    5. Добавь краткое объяснение (1-2 предложения), почему ответ правильный
+    6. Оцени сложность вопроса: easy (простой факт), medium (требует понимания), hard (требует анализа)
+    7. Избегай двусмысленности и трюковых формулировок
 
-ФОРМАТ ОТВЕТА - СТРОГО JSON:
-{{
-    "question_text": "Текст вопроса здесь",
-    "question_type": "{question_type}",
-    "options": {json.dumps(["Вариант A", "Вариант B", "Вариант C", "Вариант D"]) if question_type == "multiple_choice" else "[]"},
-    "correct_answer": "Правильный ответ",
-    "explanation": "Объяснение правильного ответа",
-    "difficulty": "easy|medium|hard"
-}}
+    ФОРМАТ ОТВЕТА - СТРОГО JSON:
+    {{
+        "question_text": "Текст вопроса здесь",
+        "question_type": "{question_type}",
+        "options": {json.dumps(["Вариант A", "Вариант B", "Вариант C", "Вариант D"]) if question_type == "multiple_choice" else "[]"},
+        "correct_answer": "Правильный ответ",
+        "explanation": "Объяснение правильного ответа",
+        "difficulty": "easy|medium|hard"
+    }}
 
-Сгенерируй вопрос #{question_number}:"""
+    Сгенерируй вопрос #{question_number}:"""
 
         return prompt
 

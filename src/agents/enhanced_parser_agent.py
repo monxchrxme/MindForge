@@ -236,7 +236,6 @@ class EnhancedParserAgent:
             # Конвертация фактов в концепции (для Quiz Agent)
             concepts = self._facts_to_concepts(facts)
 
-            # Обновление состояния
             state["key_facts"] = facts
             state["concepts"] = [c.dict() for c in concepts]  # конвертируем в dict
             state["messages"].append(f"Parser: извлечено {len(facts)} фактов")
@@ -268,8 +267,11 @@ class EnhancedParserAgent:
             # Простая эвристика для определения важности
             importance = "high" if i < 3 else "medium" if i < 6 else "low"
 
+            # Извлекаем заголовок (первые 50 символов или до первой точки)
+            title = fact.split('.')[0][:50] if '.' in fact else fact[:50]
+
             concept = ConceptSchema(
-                title=f"Концепция {i + 1}",  # можно улучшить через LLM
+                title=title,
                 description=fact,
                 importance=importance,
                 context=fact  # используем сам факт как контекст

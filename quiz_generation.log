@@ -1,0 +1,1035 @@
+2025-10-28 20:56:06,601 - __main__ - INFO - ======================================================================
+2025-10-28 20:56:06,601 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 20:56:06,601 - __main__ - INFO - ======================================================================
+2025-10-28 20:56:06,602 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 20:56:06,604 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 20:56:06,605 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 20:56:06,605 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 20:56:06,605 - __main__ - INFO -    Слов: ~559
+2025-10-28 20:56:06,605 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 20:56:06,605 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 20:56:06,605 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 20:56:06,667 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 20:56:06,667 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 20:56:06,667 - __main__ - ERROR - 
+✗ Критическая ошибка: BaseAgent.__init__() takes 2 positional arguments but 3 were given
+2025-10-28 20:59:00,612 - __main__ - INFO - ======================================================================
+2025-10-28 20:59:00,612 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 20:59:00,612 - __main__ - INFO - ======================================================================
+2025-10-28 20:59:00,612 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 20:59:00,612 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 20:59:00,612 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 20:59:00,612 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 20:59:00,619 - __main__ - INFO -    Слов: ~559
+2025-10-28 20:59:00,619 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 20:59:00,619 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 20:59:00,619 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 20:59:00,682 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 20:59:00,682 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 20:59:00,682 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 20:59:00,682 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 20:59:00,682 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 20:59:00,682 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 20:59:00,682 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 20:59:00,682 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 20:59:00,682 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 20:59:00,682 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 20:59:00,931 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 20:59:01,174 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 20:59:01,220 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 20:59:01,236 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 20:59:01,252 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 20:59:01,252 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 20:59:01,345 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 20:59:01,361 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 20:59:01,536 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 20:59:06,637 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 20:59:06,638 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 7 ключевых фактов
+2025-10-28 20:59:06,638 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 7 концепций для Quiz Agent
+2025-10-28 20:59:06,639 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 20:59:06,640 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 20:59:06,640 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 20:59:06,640 - src.agents.adapted_quiz_agent - INFO - Получено 7 концепций от Parser Agent
+2025-10-28 20:59:06,640 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 20:59:06,640 - src.agents.quiz_agent - INFO - Обнаружено 7 концепций
+2025-10-28 20:59:06,641 - src.agents.adapted_quiz_agent - ERROR - ✗ Ошибка в Quiz Agent: unhashable type: 'ConceptSchema'
+2025-10-28 20:59:06,641 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 20:59:06,641 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 20:59:06,641 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 20:59:06,642 - src.langgraph.workflow - INFO - Извлечено фактов: 7
+2025-10-28 20:59:06,642 - src.langgraph.workflow - INFO - Создано концепций: 7
+2025-10-28 20:59:06,642 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 20:59:06,642 - src.langgraph.workflow - INFO -   - Parser: извлечено 7 фактов
+2025-10-28 20:59:06,642 - src.langgraph.workflow - INFO -   - Quiz: ОШИБКА - unhashable type: 'ConceptSchema'
+2025-10-28 20:59:06,642 - __main__ - ERROR - 
+✗ Workflow завершился с ошибкой: unhashable type: 'ConceptSchema'
+2025-10-28 21:00:23,542 - __main__ - INFO - ======================================================================
+2025-10-28 21:00:23,542 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:00:23,542 - __main__ - INFO - ======================================================================
+2025-10-28 21:00:23,542 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:00:23,542 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:00:23,542 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:00:23,542 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:00:23,542 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:00:23,542 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:00:23,542 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:00:23,542 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:00:23,620 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:00:23,620 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:00:23,622 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:00:23,622 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:00:23,622 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:00:23,622 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:00:23,622 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:00:23,622 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:00:23,622 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:00:23,622 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:00:23,622 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:00:23,825 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:00:24,027 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:00:24,073 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:00:24,089 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:00:24,089 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:00:24,089 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:00:24,214 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:00:24,214 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:00:24,370 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:00:27,875 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:00:27,875 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 8 ключевых фактов
+2025-10-28 21:00:27,875 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 8 концепций для Quiz Agent
+2025-10-28 21:00:27,875 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:00:27,875 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:00:27,875 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:00:27,875 - src.agents.adapted_quiz_agent - INFO - Получено 8 концепций от Parser Agent
+2025-10-28 21:00:27,875 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:00:27,875 - src.agents.quiz_agent - INFO - Обнаружено 8 концепций
+2025-10-28 21:00:27,875 - src.agents.adapted_quiz_agent - ERROR - ✗ Ошибка в Quiz Agent: unhashable type: 'ConceptSchema'
+2025-10-28 21:00:27,875 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:00:27,875 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:00:27,875 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:00:27,875 - src.langgraph.workflow - INFO - Извлечено фактов: 8
+2025-10-28 21:00:27,882 - src.langgraph.workflow - INFO - Создано концепций: 8
+2025-10-28 21:00:27,883 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:00:27,883 - src.langgraph.workflow - INFO -   - Parser: извлечено 8 фактов
+2025-10-28 21:00:27,883 - src.langgraph.workflow - INFO -   - Quiz: ОШИБКА - unhashable type: 'ConceptSchema'
+2025-10-28 21:00:27,883 - __main__ - ERROR - 
+✗ Workflow завершился с ошибкой: unhashable type: 'ConceptSchema'
+2025-10-28 21:04:24,333 - __main__ - INFO - ======================================================================
+2025-10-28 21:04:24,333 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:04:24,333 - __main__ - INFO - ======================================================================
+2025-10-28 21:04:24,333 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:04:24,349 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:04:24,349 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:04:24,349 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:04:24,349 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:04:24,349 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:04:24,349 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:04:24,349 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:04:24,411 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:04:24,411 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:04:24,411 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:04:24,411 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:04:24,411 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:04:24,411 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:04:24,411 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:04:24,411 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:04:24,411 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:04:24,411 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:04:24,411 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:04:24,411 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:04:24,411 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:04:24,419 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:04:24,419 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:04:24,419 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:04:24,591 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:04:24,818 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:04:24,864 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:04:24,882 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:04:24,882 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:04:24,898 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:04:25,007 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:04:25,023 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:04:25,116 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:04:28,620 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:04:28,620 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 7 ключевых фактов
+2025-10-28 21:04:28,620 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 7 концепций для Quiz Agent
+2025-10-28 21:04:28,620 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:04:28,620 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:04:28,620 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:04:28,620 - src.agents.adapted_quiz_agent - INFO - Получено 7 концепций от Parser Agent
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Обнаружено 7 концепций
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Предел функции формально определяется так: число $
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Предел функции формально определяется так: число $': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Законы пределов гласят: сумма и разность пределов 
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Законы пределов гласят: сумма и разность пределов ': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Теорема о сжатии утверждает, что если $g(x) \leq f
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Теорема о сжатии утверждает, что если $g(x) \leq f': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Непрерывная функция в точке $a$ имеет предел, совп
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,620 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Непрерывная функция в точке $a$ имеет предел, совп': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Типичными приемами вычисления пределов являются ал
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Типичными приемами вычисления пределов являются ал': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - WARNING - Сгенерировано мало вопросов: 0 из 7
+2025-10-28 21:04:28,633 - src.agents.quiz_agent - INFO - Квиз сгенерирован: 0 вопросов, сложность: {'easy': 0, 'medium': 0, 'hard': 0}, типы: {'multiple_choice': 0, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:04:28,633 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 0 вопросов
+2025-10-28 21:04:28,633 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {'easy': 0, 'medium': 0, 'hard': 0}
+2025-10-28 21:04:28,633 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {'multiple_choice': 0, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - Извлечено фактов: 7
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - Создано концепций: 7
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO -   - Parser: извлечено 7 фактов
+2025-10-28 21:04:28,633 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 0 вопросов
+2025-10-28 21:04:28,633 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:04:28,633 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:04:28,633 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:04:28,633 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:04:28,633 - __main__ - INFO - ======================================================================
+2025-10-28 21:04:28,633 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:04:28,633 - __main__ - INFO - Логи записаны в: quiz_generation.log
+2025-10-28 21:10:22,830 - __main__ - INFO - ======================================================================
+2025-10-28 21:10:22,830 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:10:22,830 - __main__ - INFO - ======================================================================
+2025-10-28 21:10:22,830 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:10:22,845 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:10:22,845 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:10:22,845 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:10:22,845 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:10:22,845 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:10:22,845 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:10:22,845 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:10:22,908 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:10:22,908 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:10:22,908 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:10:22,908 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:10:22,908 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:10:22,908 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:10:22,908 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:10:22,908 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:10:22,908 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:10:22,908 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:10:22,916 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:10:23,128 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:10:23,331 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:10:23,393 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:10:23,409 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:10:23,409 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:10:23,409 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:10:23,535 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:10:23,550 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:10:23,800 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:10:27,663 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:10:27,663 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 8 ключевых фактов
+2025-10-28 21:10:27,663 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 8 концепций для Quiz Agent
+2025-10-28 21:10:27,663 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:10:27,663 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:10:27,663 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:10:27,663 - src.agents.adapted_quiz_agent - INFO - Получено 8 концепций от Parser Agent
+2025-10-28 21:10:27,663 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:10:27,663 - src.agents.quiz_agent - INFO - Обнаружено 8 концепций
+2025-10-28 21:10:27,663 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Предел функции формально определяется так: число $
+2025-10-28 21:10:27,663 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Предел функции формально определяется так: число $
+2025-10-28 21:10:27,663 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Предел функции формально определяется так: число $': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Предел функции формально определяется так: число $': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:10:27,678 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Закон пределов утверждает, что сумма, разность, пр
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Закон пределов утверждает, что сумма, разность, пр
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Закон пределов утверждает, что сумма, разность, пр': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Закон пределов утверждает, что сумма, разность, пр': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Теорема о сжатии (о двух милиционерах) гласит: есл
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Теорема о сжатии (о двух милиционерах) гласит: есл
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Теорема о сжатии (о двух милиционерах) гласит: есл': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Теорема о сжатии (о двух милиционерах) гласит: есл': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Непрерывная функция в точке $a$ характеризуется те
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Непрерывная функция в точке $a$ характеризуется те
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Непрерывная функция в точке $a$ характеризуется те': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Непрерывная функция в точке $a$ характеризуется те': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Типы разрывов функции включают устранимые, разрыва
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Типы разрывов функции включают устранимые, разрыва
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Типы разрывов функции включают устранимые, разрыва': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Типы разрывов функции включают устранимые, разрыва': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Для вычисления пределов используются алгебраически
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - INFO - Отправка запроса в GigaChat для концепции: Для вычисления пределов используются алгебраически
+2025-10-28 21:10:27,692 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Для вычисления пределов используются алгебраически': 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:10:27,698 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Для вычисления пределов используются алгебраически': 'QuizAgent' object has no attribute '_fallback_question_parsing'
+2025-10-28 21:10:27,698 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:10:27,698 - src.agents.quiz_agent - ERROR - Не удалось сгенерировать ни одного вопроса!
+2025-10-28 21:10:27,698 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 0 вопросов
+2025-10-28 21:10:27,698 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {}
+2025-10-28 21:10:27,698 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {}
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - Извлечено фактов: 8
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - Создано концепций: 8
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO -   - Parser: извлечено 8 фактов
+2025-10-28 21:10:27,698 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 0 вопросов
+2025-10-28 21:10:27,698 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:10:27,698 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:10:27,698 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:10:27,698 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:10:27,698 - __main__ - INFO - ======================================================================
+2025-10-28 21:10:27,698 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:10:27,701 - __main__ - INFO - Логи записаны в: quiz_generation.log
+2025-10-28 21:10:56,721 - __main__ - INFO - ======================================================================
+2025-10-28 21:10:56,721 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:10:56,721 - __main__ - INFO - ======================================================================
+2025-10-28 21:10:56,721 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:10:56,721 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:10:56,721 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:10:56,721 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:10:56,721 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:10:56,721 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:10:56,721 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:10:56,721 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:10:56,784 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:10:56,784 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:10:56,784 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:10:56,784 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:10:56,784 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:10:56,784 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:10:56,784 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:10:56,784 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:10:56,784 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:10:56,784 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:10:56,784 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:10:56,784 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:10:56,784 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:10:56,795 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:10:56,795 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:10:56,795 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:10:56,997 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:10:57,347 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:10:57,441 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:10:57,456 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:10:57,456 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:10:57,456 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:10:57,598 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:10:57,598 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:10:57,817 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:11:02,523 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:11:02,523 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 6 ключевых фактов
+2025-10-28 21:11:02,539 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 6 концепций для Quiz Agent
+2025-10-28 21:11:02,539 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:11:02,539 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:11:02,539 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:11:02,540 - src.agents.adapted_quiz_agent - INFO - Получено 6 концепций от Parser Agent
+2025-10-28 21:11:02,540 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:11:02,540 - src.agents.quiz_agent - INFO - Обнаружено 6 концепций
+2025-10-28 21:11:02,540 - src.agents.quiz_agent - INFO - Генерация 2 вопросов для концепции: Предел функции формально определяется так: число $
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Предел функции формально определяется так: число $': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 2 для 'Предел функции формально определяется так: число $': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,541 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,542 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Законы пределов гласят: если $\lim_{x \to a} f(x) 
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Законы пределов гласят: если $\lim_{x \to a} f(x) ': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Теорема о сжатии утверждает, что если $g(x) \leq f
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Теорема о сжатии утверждает, что если $g(x) \leq f': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Непрерывная функция в точке $a$ характеризуется те
+2025-10-28 21:11:02,543 - src.agents.quiz_agent - ERROR - Ошибка вызова GigaChat API: 'GigaChat' object has no attribute 'generate_structured'
+2025-10-28 21:11:02,544 - src.agents.quiz_agent - WARNING - Использование fallback генерации
+2025-10-28 21:11:02,544 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Непрерывная функция в точке $a$ характеризуется те': BaseChatModel.generate() missing 1 required positional argument: 'messages'
+2025-10-28 21:11:02,544 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:11:02,544 - src.agents.quiz_agent - ERROR - Не удалось сгенерировать ни одного вопроса!
+2025-10-28 21:11:02,544 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 0 вопросов
+2025-10-28 21:11:02,544 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {}
+2025-10-28 21:11:02,544 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {}
+2025-10-28 21:11:02,544 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO - Извлечено фактов: 6
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO - Создано концепций: 6
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO -   - Parser: извлечено 6 фактов
+2025-10-28 21:11:02,545 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 0 вопросов
+2025-10-28 21:11:02,545 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:11:02,546 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:11:02,546 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:11:02,546 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:11:02,546 - __main__ - INFO - ======================================================================
+2025-10-28 21:11:02,546 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:11:02,547 - __main__ - INFO - Логи записаны в: quiz_generation.log
+2025-10-28 21:15:17,999 - __main__ - INFO - ======================================================================
+2025-10-28 21:15:17,999 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:15:17,999 - __main__ - INFO - ======================================================================
+2025-10-28 21:15:17,999 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:15:17,999 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:15:18,003 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:15:18,003 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:15:18,003 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:15:18,003 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:15:18,003 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:15:18,003 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:15:18,059 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:15:18,059 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:15:18,059 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:15:18,059 - src.utils.gigachat_client - INFO - GigaChatClient инициализирован (model=GigaChat)
+2025-10-28 21:15:18,059 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:15:18,059 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:15:18,059 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:15:18,059 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:15:18,059 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:15:18,059 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:15:18,059 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:15:18,059 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:15:18,059 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:15:18,059 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:15:18,075 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:15:18,075 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:15:18,075 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:15:18,278 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:15:18,512 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:15:18,565 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:15:18,576 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:15:18,576 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:15:18,576 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:15:18,701 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:15:18,701 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:15:18,826 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:15:23,173 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:23,173 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 7 ключевых фактов
+2025-10-28 21:15:23,173 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 7 концепций для Quiz Agent
+2025-10-28 21:15:23,173 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:15:23,173 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:15:23,173 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:15:23,173 - src.agents.adapted_quiz_agent - INFO - Получено 7 концепций от Parser Agent
+2025-10-28 21:15:23,173 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:15:23,173 - src.agents.quiz_agent - INFO - Обнаружено 7 концепций
+2025-10-28 21:15:23,173 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Предел функции $\lim_{x \to a} f(x)$ формально опр
+2025-10-28 21:15:23,329 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:15:25,502 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:25,502 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 304) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:25,502 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Какой формальный критерий используется для определения предела функции $f(x)$ в точке $a$?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) Существует конечный предел функции при $x$ стремящемся к бесконечности",
+        "B) Для любого положительного числа $\varepsilon$ существует $\delta > 0$, такое что $|f(x)-L|<\varepsilon$ при $0<|x-a|<\delta$",
+        "C) Функция $f(x)$ непрерывна в точке $a$",
+        "D) Функция $f(x)$ имеет производную в точ
+2025-10-28 21:15:25,502 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Предел функции $\lim_{x \to a} f(x)$ формально опр': 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 304) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:25,533 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Предел функции $\lim_{x \to a} f(x)$ формально опр': 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 304) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:25,533 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:15:25,533 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:15:26,675 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:26,675 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 11 column 44 (char 408) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:15:26,676 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Какой предел рассматривается при приближении аргумента функции слева к заданной точке?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) Правосторонний предел",
+        "B) Левосторонний предел",
+        "C) Односторонний предел",
+        "D) Двусторонний предел"
+    ],
+    "correct_answer": "B) Левосторонний предел",
+    "explanation": "Левосторонний предел ($\lim_{x\to a^{-}}$) означает приближение аргумента функции к точке $a$ слева, то есть через 
+2025-10-28 21:15:26,676 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 1 validation error for Question
+__root__
+  Invalid \escape: line 11 column 44 (char 408) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:15:26,678 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 1 validation error for Question
+__root__
+  Invalid \escape: line 11 column 44 (char 408) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:15:26,678 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:15:26,678 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:15:28,616 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:28,616 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 57 (char 58) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:28,616 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Что означает бесконечный предел $ \lim_{x \to a} f(x) = \infty $?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) Значения функции $ f(x) $ стремятся к нулю при приближении $ x $ к $ a $",
+        "B) Значения функции $ f(x) $ становятся произвольно большими по абсолютному значению при приближении $ x $ к $ a $",
+        "C) Функция $ f(x) $ имеет разрыв первого рода в точке $ a $",
+        "D) Функция $ f(x) $ определена во всех точках вблизи точки
+2025-10-28 21:15:28,616 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 57 (char 58) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:28,632 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 57 (char 58) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:28,632 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:15:28,632 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Законы пределов гласят: сумма $\lim_{x \to a} (f +
+2025-10-28 21:15:29,727 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:29,728 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Законы пределов гласят: сумма $\lim_{x \to a} (f +'
+2025-10-28 21:15:29,728 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:15:29,729 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Теорема о сжатии утверждает, что если $g(x) \leq f
+2025-10-28 21:15:31,634 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:31,634 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 61 (char 62) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:31,634 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Согласно теореме о сжатии, если $g(x) \leq f(x) \leq h(x)$ в окрестности точки $a$ (кроме самой точки), и $\lim_{x\to a}g(x)=\lim_{x\to a}h(x)=L$, тогда какой предел существует?"
+    ,
+    "question_type": "multiple_choice",
+    "options": [
+        "A) $\lim_{x\to a}f(x)=L$",
+        "B) $\lim_{x\to a}f(x)=0$",
+        "C) $\lim_{x\to a}f(x)=1$",
+        "D) $\lim_{x\to a}f(x)=L+1$"
+    ]
+    ,
+    "correct_answer": "A) $\lim_{x\to a}f(x)=L$",
+    "explanation": "По теор
+2025-10-28 21:15:31,634 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Теорема о сжатии утверждает, что если $g(x) \leq f': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 61 (char 62) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:31,634 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Теорема о сжатии утверждает, что если $g(x) \leq f': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 61 (char 62) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:31,641 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:15:31,641 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Функция называется непрерывной в точке $a$, если $
+2025-10-28 21:15:33,558 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:33,558 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 117 (char 118) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:33,558 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Функция $f(x)$ называется непрерывной в точке $a$, если верно следующее утверждение: <br> A) $\lim_{x\to a}f(x)=f(a+1)$ <br> B) $\lim_{x\to a}f(x)\neq f(a)$ <br> C) $\lim_{x\to a}f(x)=f(a)$ <br> D) $\lim_{x\to a+1}f(x)=f(a)$",
+    "question_type": "multiple_choice",
+    "options": [
+        "C) $\lim_{x\to a}f(x)=f(a)$",
+        "A) $\lim_{x\to a}f(x)=f(a+1)$",
+        "B) $\lim_{x\to a}f(x)\neq f(a)$",
+        "D) $\lim_{x\to a+1}f(x)=f(a)$"
+    ],
+    "correct_answer": 
+2025-10-28 21:15:33,558 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Функция называется непрерывной в точке $a$, если $': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 117 (char 118) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:33,574 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Функция называется непрерывной в точке $a$, если $': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 117 (char 118) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:15:33,574 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:15:33,574 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Типы разрывов функции включают устранимые разрывы,
+2025-10-28 21:15:35,308 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:15:35,309 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Типы разрывов функции включают устранимые разрывы,'
+2025-10-28 21:15:35,309 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:15:35,309 - src.agents.quiz_agent - WARNING - Сгенерировано мало вопросов: 2 из 7
+2025-10-28 21:15:35,310 - src.agents.quiz_agent - INFO - Квиз сгенерирован: 2 вопросов, сложность: {'easy': 1, 'medium': 1, 'hard': 0}, типы: {'multiple_choice': 2, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:15:35,310 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 2 вопросов
+2025-10-28 21:15:35,310 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {'easy': 1, 'medium': 1, 'hard': 0}
+2025-10-28 21:15:35,310 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {'multiple_choice': 2, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - Извлечено фактов: 7
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - Создано концепций: 7
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - Сгенерировано вопросов: 2
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO -   - Parser: извлечено 7 фактов
+2025-10-28 21:15:35,311 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 2 вопросов
+2025-10-28 21:15:35,312 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:15:35,312 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:15:35,313 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:15:35,314 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:15:35,314 - __main__ - INFO - ======================================================================
+2025-10-28 21:15:35,314 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:15:35,314 - __main__ - INFO - Логи записаны в: quiz_generation.log
+2025-10-28 21:16:38,959 - __main__ - INFO - ======================================================================
+2025-10-28 21:16:38,959 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:16:38,959 - __main__ - INFO - ======================================================================
+2025-10-28 21:16:38,959 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:16:38,959 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:16:38,959 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:16:38,959 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:16:38,959 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:16:38,959 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:16:38,959 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:16:38,959 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:16:39,023 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:16:39,023 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:16:39,023 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:16:39,023 - src.utils.gigachat_client - INFO - GigaChatClient инициализирован (model=GigaChat)
+2025-10-28 21:16:39,023 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:16:39,034 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:16:39,034 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:16:39,034 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:16:39,034 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:16:39,034 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:16:39,034 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - Текст длинный - активация RAG
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - Создание векторного хранилища...
+2025-10-28 21:16:39,034 - src.agents.enhanced_parser_agent - INFO - Создано 6 чанков
+2025-10-28 21:16:39,237 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:16:39,536 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:16:39,585 - faiss.loader - INFO - Loading faiss with AVX2 support.
+2025-10-28 21:16:39,601 - faiss.loader - INFO - Successfully loaded faiss with AVX2 support.
+2025-10-28 21:16:39,601 - src.agents.enhanced_parser_agent - INFO - Векторное хранилище создано успешно
+2025-10-28 21:16:39,601 - src.agents.enhanced_parser_agent - INFO - Поиск релевантного контекста (k=3)...
+2025-10-28 21:16:39,742 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/embeddings "HTTP/1.1 200 OK"
+2025-10-28 21:16:39,742 - src.agents.enhanced_parser_agent - INFO - Найдено 3 релевантных чанков
+2025-10-28 21:16:39,851 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:16:43,290 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:43,290 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 7 ключевых фактов
+2025-10-28 21:16:43,290 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 7 концепций для Quiz Agent
+2025-10-28 21:16:43,290 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:16:43,290 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:16:43,290 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:16:43,290 - src.agents.adapted_quiz_agent - INFO - Получено 7 концепций от Parser Agent
+2025-10-28 21:16:43,290 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:16:43,290 - src.agents.quiz_agent - INFO - Обнаружено 7 концепций
+2025-10-28 21:16:43,290 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Предел функции формально определяется так: число $
+2025-10-28 21:16:43,426 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:16:45,713 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:45,713 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 297) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:45,713 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Какой формальной характеристикой обладает число $L$, являющееся пределом функции $f(x)$ при $x$ стремящемся к $a$?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) Существует единственное значение $f(a)$",
+        "B) Для любого положительного числа $\varepsilon$ существует положительное число $\delta$ такое, что $|f(x)-L|<\varepsilon$ при $0<|x-a|<\delta$",
+        "C) Функция $f(x)$ непрерывна в точке $a$",
+        "D) Функция $f(x)$ дифференцируем
+2025-10-28 21:16:45,713 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Предел функции формально определяется так: число $': 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 297) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:45,719 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Предел функции формально определяется так: число $': 1 validation error for Question
+__root__
+  Invalid \escape: line 6 column 46 (char 297) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:45,719 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:16:45,719 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас
+2025-10-28 21:16:47,261 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:47,261 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 176) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:47,261 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Какой предел рассматривается, когда переменная $x$ стремится к значению $a$ слева?",
+    "question_type": "multiple_choice",
+    "options": [
+        "$\lim_{x\to a^+}f(x)$",
+        "$\lim_{x\to a^-}f(x)$",
+        "$\lim_{x\to\infty}f(x)$",
+        "Предел функции не зависит от направления приближения"
+    ],
+    "correct_answer": "$\lim_{x\to a^-}f(x)$",
+    "explanation": "Левосторонний предел $\lim_{x\to a^-}f(x)$ означает, что значение функции $f(x)$ рассматривается
+2025-10-28 21:16:47,261 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 176) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:47,261 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Левосторонний предел $\lim_{x \to a^{-}} f(x)$ рас': 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 176) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:47,261 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:16:47,261 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Бесконечный предел $\lim_{x \to a} f(x) = \infty$ 
+2025-10-28 21:16:48,762 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:48,762 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 56 (char 57) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:48,763 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Что означает бесконечный предел $\lim_{x \to a} f(x) = \infty$?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) Функция стремится к конечному числу при приближении x к a",
+        "B) Значения функции становятся сколь угодно большими по абсолютному значению при приближении x к a",
+        "C) Функция периодически колеблется вблизи числа a",
+        "D) Функция имеет разрыв в точке a"
+    ],
+    "correct_answer": "B) Значения функции становятся сколь
+2025-10-28 21:16:48,763 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 56 (char 57) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:48,765 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Бесконечный предел $\lim_{x \to a} f(x) = \infty$ ': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 56 (char 57) [type=value_error.jsondecode, input_value='{\n    "question_text": ..."difficulty": "easy"\n}', input_type=str]
+2025-10-28 21:16:48,765 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:16:48,765 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Закон пределов утверждает, что сумма, разность, пр
+2025-10-28 21:16:50,173 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:50,174 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Закон пределов утверждает, что сумма, разность, пр'
+2025-10-28 21:16:50,174 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:16:50,174 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Теорема о сжатии (о двух милиционерах) гласит: есл
+2025-10-28 21:16:52,273 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:52,273 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 83 (char 84) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:52,273 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Согласно теореме о сжатии (о двух милиционерах), если $g(x) \leq f(x) \leq h(x)$ в окрестности точки $a$ (кроме самой точки), и $\lim_{x\to a}g(x)=\lim_{x\to a}h(x)=L$, какое утверждение верно относительно $\lim_{x\to a}f(x)$?",
+    "question_type": "multiple_choice",
+    "options": [
+        "A) $\lim_{x\to a}f(x) = L$",
+        "B) $\lim_{x\to a}f(x) < L$",
+        "C) $\lim_{x\to a}f(x) > L$",
+        "D) $\lim_{x\to a}f(x) = 0$"
+    ],
+    "correct_answer": "A) $\lim_
+2025-10-28 21:16:52,273 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Теорема о сжатии (о двух милиционерах) гласит: есл': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 83 (char 84) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:52,279 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Теорема о сжатии (о двух милиционерах) гласит: есл': 1 validation error for Question
+__root__
+  Invalid \escape: line 2 column 83 (char 84) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:52,280 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:16:52,280 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Непрерывная функция в точке $a$ имеет предел, равн
+2025-10-28 21:16:53,492 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:53,492 - src.utils.gigachat_client - ERROR - Ошибка structured generation: 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 141) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:53,492 - src.utils.gigachat_client - ERROR - Ответ LLM: {
+    "question_text": "Что означает непрерывность функции в точке $a$?",
+    "question_type": "multiple_choice",
+    "options": [
+        "$\lim_{x\to a}f(x)$ не существует",
+        "$\lim_{x\to a}f(x)\neq f(a)$",
+        "$\lim_{x\to a}f(x)=f(a)$",
+        "Функция определена только в одной точке $a$"
+    ],
+    "correct_answer": "$\lim_{x\to a}f(x)=f(a)$",
+    "explanation": "Непрерывность функции в точке $a$ определяется равенством предела функции в этой точке и значения самой функции в дан
+2025-10-28 21:16:53,492 - src.agents.quiz_agent - ERROR - ✗ Ошибка вызова GigaChat API для 'Непрерывная функция в точке $a$ имеет предел, равн': 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 141) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:53,499 - src.agents.quiz_agent - ERROR - Ошибка генерации вопроса 1 для 'Непрерывная функция в точке $a$ имеет предел, равн': 1 validation error for Question
+__root__
+  Invalid \escape: line 5 column 11 (char 141) [type=value_error.jsondecode, input_value='{\n    "question_text": ...ifficulty": "medium"\n}', input_type=str]
+2025-10-28 21:16:53,499 - src.agents.quiz_agent - INFO - Успешно сгенерировано 0 вопросов
+2025-10-28 21:16:53,499 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Типичными приемами вычисления пределов являются ал
+2025-10-28 21:16:54,482 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:16:54,482 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Типичными приемами вычисления пределов являются ал'
+2025-10-28 21:16:54,482 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:16:54,482 - src.agents.quiz_agent - WARNING - Сгенерировано мало вопросов: 2 из 7
+2025-10-28 21:16:54,482 - src.agents.quiz_agent - INFO - Квиз сгенерирован: 2 вопросов, сложность: {'easy': 1, 'medium': 1, 'hard': 0}, типы: {'multiple_choice': 2, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:16:54,482 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 2 вопросов
+2025-10-28 21:16:54,482 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {'easy': 1, 'medium': 1, 'hard': 0}
+2025-10-28 21:16:54,482 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {'multiple_choice': 2, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - Извлечено фактов: 7
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - Создано концепций: 7
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - Сгенерировано вопросов: 2
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO -   - Parser: извлечено 7 фактов
+2025-10-28 21:16:54,482 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 2 вопросов
+2025-10-28 21:16:54,482 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:16:54,482 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:16:54,493 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:16:54,493 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:16:54,493 - __main__ - INFO - ======================================================================
+2025-10-28 21:16:54,493 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:16:54,493 - __main__ - INFO - Логи записаны в: quiz_generation.log
+2025-10-28 21:22:24,481 - __main__ - INFO - ======================================================================
+2025-10-28 21:22:24,481 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:22:24,481 - __main__ - INFO - ======================================================================
+2025-10-28 21:22:24,481 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:22:24,481 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:22:24,481 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (4400 символов)
+2025-10-28 21:22:24,481 - __main__ - INFO -    Длина текста: 4400 символов
+2025-10-28 21:22:24,481 - __main__ - INFO -    Слов: ~559
+2025-10-28 21:22:24,481 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:22:24,481 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:22:24,481 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:22:24,559 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:22:24,559 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:22:24,559 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:22:24,559 - src.utils.gigachat_client - INFO - GigaChatClient инициализирован (model=GigaChat)
+2025-10-28 21:22:24,559 - __main__ - ERROR - 
+✗ Критическая ошибка: 'QuizAgent' object has no attribute '_load_few_shot_examples'
+2025-10-28 21:24:03,750 - __main__ - INFO - ======================================================================
+2025-10-28 21:24:03,750 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:24:03,750 - __main__ - INFO - ======================================================================
+2025-10-28 21:24:03,750 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:24:03,750 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:24:03,750 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (1096 символов)
+2025-10-28 21:24:03,759 - __main__ - INFO -    Длина текста: 1096 символов
+2025-10-28 21:24:03,759 - __main__ - INFO -    Слов: ~131
+2025-10-28 21:24:03,759 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:24:03,759 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:24:03,759 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:24:03,821 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:24:03,821 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:24:03,821 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:24:03,821 - src.utils.gigachat_client - INFO - GigaChatClient инициализирован (model=GigaChat)
+2025-10-28 21:24:03,821 - __main__ - ERROR - 
+✗ Критическая ошибка: 'QuizAgent' object has no attribute '_load_few_shot_examples'
+2025-10-28 21:24:32,789 - __main__ - INFO - ======================================================================
+2025-10-28 21:24:32,789 - __main__ - INFO - OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW
+2025-10-28 21:24:32,789 - __main__ - INFO - ======================================================================
+2025-10-28 21:24:32,789 - __main__ - INFO - 
+1️⃣  Загрузка конфигурации: config/config.yaml
+2025-10-28 21:24:32,789 - __main__ - INFO - 
+2️⃣  Загрузка лекции: .\sample_lecture.txt\
+2025-10-28 21:24:32,789 - src.utils.helpers - INFO - ✓ Загружена лекция: .\sample_lecture.txt\ (1096 символов)
+2025-10-28 21:24:32,789 - __main__ - INFO -    Длина текста: 1096 символов
+2025-10-28 21:24:32,789 - __main__ - INFO -    Слов: ~131
+2025-10-28 21:24:32,789 - __main__ - INFO - 
+3️⃣  Инициализация LangGraph Workflow
+2025-10-28 21:24:32,789 - src.langgraph.workflow - INFO - Инициализация LangGraph Workflow...
+2025-10-28 21:24:32,789 - src.agents.enhanced_parser_agent - INFO - Инициализация Enhanced Parser Agent...
+2025-10-28 21:24:32,852 - src.agents.enhanced_parser_agent - INFO - Enhanced Parser Agent инициализирован
+2025-10-28 21:24:32,852 - src.agents.adapted_quiz_agent - INFO - Инициализация Adapted Quiz Agent...
+2025-10-28 21:24:32,852 - src.agents.base_agent.QuizAgent - INFO - QuizAgent инициализирован
+2025-10-28 21:24:32,852 - src.utils.gigachat_client - INFO - GigaChatClient инициализирован (model=GigaChat)
+2025-10-28 21:24:32,852 - src.agents.quiz_agent - INFO - QuizAgent инициализирован: 7 вопросов, типы: ['multiple_choice', 'true_false', 'short_answer']
+2025-10-28 21:24:32,852 - src.agents.adapted_quiz_agent - INFO - Adapted Quiz Agent инициализирован
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - Построение LangGraph графа...
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - Граф успешно построен: parser -> quiz_generator -> END
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - LangGraph Workflow готов к работе
+2025-10-28 21:24:32,852 - __main__ - INFO -    RAG: ✓ Включен
+2025-10-28 21:24:32,852 - __main__ - INFO -    Веб-поиск: ✗ Отключен
+2025-10-28 21:24:32,852 - __main__ - INFO - 
+4️⃣  Запуск генерации квиза...
+2025-10-28 21:24:32,852 - __main__ - INFO - ----------------------------------------------------------------------
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - ЗАПУСК WORKFLOW
+2025-10-28 21:24:32,852 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:24:32,852 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:24:32,852 - src.agents.enhanced_parser_agent - INFO - Parser Agent: начало обработки
+2025-10-28 21:24:32,852 - src.agents.enhanced_parser_agent - INFO - ==================================================
+2025-10-28 21:24:33,196 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:24:34,291 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:34,291 - src.agents.enhanced_parser_agent - INFO - ✓ Извлечено 7 ключевых фактов
+2025-10-28 21:24:34,291 - src.agents.enhanced_parser_agent - INFO - ✓ Создано 7 концепций для Quiz Agent
+2025-10-28 21:24:34,291 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:24:34,291 - src.agents.adapted_quiz_agent - INFO - Quiz Agent: начало генерации квиза
+2025-10-28 21:24:34,291 - src.agents.adapted_quiz_agent - INFO - ==================================================
+2025-10-28 21:24:34,291 - src.agents.adapted_quiz_agent - INFO - Получено 7 концепций от Parser Agent
+2025-10-28 21:24:34,291 - src.agents.quiz_agent - INFO - Начало генерации квиза
+2025-10-28 21:24:34,291 - src.agents.quiz_agent - INFO - Обнаружено 7 концепций
+2025-10-28 21:24:34,291 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Квантовая механика изучает поведение материи и эне
+2025-10-28 21:24:34,430 - httpx - INFO - HTTP Request: POST https://ngw.devices.sberbank.ru:9443/api/v2/oauth "HTTP/1.1 200 OK"
+2025-10-28 21:24:35,730 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:35,730 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Квантовая механика изучает поведение материи и эне'
+2025-10-28 21:24:35,730 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:35,730 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Основные концепции квантовой механики включают ква
+2025-10-28 21:24:37,028 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:37,028 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Основные концепции квантовой механики включают ква'
+2025-10-28 21:24:37,028 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:37,044 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Волновая функция ψ(x,t) полностью характеризует со
+2025-10-28 21:24:38,406 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:38,406 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Волновая функция ψ(x,t) полностью характеризует со'
+2025-10-28 21:24:38,406 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:38,406 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Принцип неопределённости Гейзенберга утверждает не
+2025-10-28 21:24:39,907 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:39,907 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Принцип неопределённости Гейзенберга утверждает не'
+2025-10-28 21:24:39,907 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:39,907 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Квантовая система способна пребывать в суперпозици
+2025-10-28 21:24:41,252 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:41,252 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Квантовая система способна пребывать в суперпозици'
+2025-10-28 21:24:41,252 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:41,252 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Энергетическое состояние микрообъектов ограничено 
+2025-10-28 21:24:42,441 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:42,441 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Энергетическое состояние микрообъектов ограничено '
+2025-10-28 21:24:42,441 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:42,441 - src.agents.quiz_agent - INFO - Генерация 1 вопросов для концепции: Уравнение Шрёдингера определяет временную эволюцию
+2025-10-28 21:24:43,552 - httpx - INFO - HTTP Request: POST https://gigachat.devices.sberbank.ru/api/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-28 21:24:43,552 - src.agents.quiz_agent - INFO - ✓ Вопрос успешно сгенерирован для 'Уравнение Шрёдингера определяет временную эволюцию'
+2025-10-28 21:24:43,552 - src.agents.quiz_agent - INFO - Успешно сгенерировано 1 вопросов
+2025-10-28 21:24:43,552 - src.agents.quiz_agent - INFO - Квиз сгенерирован: 7 вопросов, сложность: {'easy': 2, 'medium': 5, 'hard': 0}, типы: {'multiple_choice': 7, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:24:43,552 - src.agents.adapted_quiz_agent - INFO - ✓ Сгенерировано 7 вопросов
+2025-10-28 21:24:43,552 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по сложности: {'easy': 2, 'medium': 5, 'hard': 0}
+2025-10-28 21:24:43,552 - src.agents.adapted_quiz_agent - INFO - ✓ Распределение по типам: {'multiple_choice': 7, 'true_false': 0, 'short_answer': 0}
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - 
+======================================================================
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - WORKFLOW ЗАВЕРШЁН УСПЕШНО
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - ======================================================================
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - Извлечено фактов: 7
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - Создано концепций: 7
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - Сгенерировано вопросов: 7
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO - 
+История выполнения:
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO -   - Parser: извлечено 7 фактов
+2025-10-28 21:24:43,552 - src.langgraph.workflow - INFO -   - Quiz: сгенерировано 7 вопросов
+2025-10-28 21:24:43,552 - __main__ - INFO - 
+5️⃣  Форматирование и сохранение результатов
+2025-10-28 21:24:43,552 - src.utils.helpers - INFO - ✓ Результаты сохранены: quiz_result.json
+2025-10-28 21:24:43,565 - __main__ - INFO - 
+======================================================================
+2025-10-28 21:24:43,565 - __main__ - INFO - ✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО
+2025-10-28 21:24:43,565 - __main__ - INFO - ======================================================================
+2025-10-28 21:24:43,565 - __main__ - INFO - Результаты сохранены в: quiz_result.json
+2025-10-28 21:24:43,565 - __main__ - INFO - Логи записаны в: quiz_generation.log

@@ -4,7 +4,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,12 +16,14 @@ class BaseAgent(ABC):
     Определяет общий интерфейс
     """
 
-    def __init__(self, agent_name: str):
+    def __init__(self, agent_name: str, config: Optional[Dict[str, Any]] = None):
         """
         Args:
             agent_name: имя агента для логирования
+            config: опциональная конфигурация агента
         """
         self.agent_name = agent_name
+        self.config = config or {}
         self.logger = logging.getLogger(f"{__name__}.{agent_name}")
         self.logger.info(f"{agent_name} инициализирован")
 
@@ -39,4 +41,10 @@ class BaseAgent(ABC):
         """
         pass
 
-# TODO: Добавить методы log_input() и log_output() для удобства
+    def log_input(self, data: Any):
+        """Логирование входных данных"""
+        self.logger.debug(f"Входные данные: {str(data)[:200]}...")
+
+    def log_output(self, data: Any):
+        """Логирование выходных данных"""
+        self.logger.debug(f"Выходные данные: {str(data)[:200]}...")

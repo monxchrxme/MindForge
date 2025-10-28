@@ -4,7 +4,7 @@ Adapted Quiz Agent - адаптация под LangGraph и единый фор�
 
 from typing import Dict, Any, List
 import logging
-from .state_schema import GraphState, ConceptSchema
+from ..langgraph.state_schema import GraphState, ConceptSchema
 # Импортируем оригинальные классы из quiz_agent.py
 from .quiz_agent import QuizAgent as OriginalQuizAgent, Quiz, Question
 
