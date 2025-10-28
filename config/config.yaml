@@ -1,0 +1,18 @@
+# Конфигурация на основе твоих параметров
+gigachat:
+  parser:
+    temperature: 0.2
+    timeout: 60
+  quiz:
+    temperature: 0.6
+    timeout: 60
+
+# Будущие настройки для RAG (пока не используются)
+rag:
+  enabled: false  # Будет включен позже
+  chunk_size: 500
+  chunk_overlap: 100
+
+# Настройки квиза (для будущего Quiz Agent)
+quiz:
+  num_questions: 7
