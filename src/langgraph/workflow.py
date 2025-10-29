@@ -1,44 +1,38 @@
 """
-LangGraph Workflow - связывание агентов через граф состояний
+LangGraph Workflow для координации Parser и Quiz агентов
 """
 
-import logging
-from typing import Dict, Any
 from langgraph.graph import StateGraph, END
-from .state_schema import GraphState
-from ..agents.enhanced_parser_agent import EnhancedParserAgent
-from ..agents.adapted_quiz_agent import AdaptedQuizAgent
+from src.langgraph.state_schema import GraphState
+from src.agents.parser_agent import ParserAgent  # ИЗМЕНЕНО: новый импорт
+from src.agents.adapted_quiz_agent import AdaptedQuizAgent
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class QuizGenerationWorkflow:
-    """
-    LangGraph workflow для генерации квизов
-
-    Граф:
-    START -> Parser Agent -> Quiz Agent -> END
-    """
+    """LangGraph Workflow для генерации квизов"""
 
     def __init__(
         self,
         gigachat_credentials: str,
-        quiz_config: Dict[str, Any],
+        quiz_config: dict,
         use_rag: bool = True,
         enable_web_search: bool = False
     ):
         """
-        Args:
-            gigachat_credentials: GigaChat API ключ
-            quiz_config: конфигурация для Quiz Agent
-            use_rag: использовать RAG в Parser Agent
-            enable_web_search: включить веб-поиск
-        """
-        logger.info("Инициализация LangGraph Workflow...")
+        Инициализация workflow
 
-        # Инициализация агентов
-        self.parser_agent = EnhancedParserAgent(
-            credentials=gigachat_credentials,
+        Args:
+            gigachat_credentials: GigaChat API credentials
+            quiz_config: конфигурация для Quiz Agent
+            use_rag: использовать ли RAG
+            enable_web_search: проверять ли факты через веб-поиск
+        """
+        # ИЗМЕНЕНО: используем ParserAgent вместо EnhancedParserAgent
+        self.parser_agent = ParserAgent(
+            gigachat_credentials=gigachat_credentials,
             use_rag=use_rag,
             enable_web_search=enable_web_search
         )
@@ -46,102 +40,81 @@ class QuizGenerationWorkflow:
         self.quiz_agent = AdaptedQuizAgent(config=quiz_config)
 
         # Построение графа
-        self.graph = self._build_graph()
+        self.workflow = self._build_workflow()
 
-        logger.info("LangGraph Workflow готов к работе")
+        logger.info(
+            f"QuizGenerationWorkflow инициализирован "
+            f"(RAG={use_rag}, WebSearch={enable_web_search})"
+        )
 
-    def _build_graph(self) -> StateGraph:
-        """Построение LangGraph графа"""
-        logger.info("Построение LangGraph графа...")
+    def _build_workflow(self) -> StateGraph:
+        """Построение LangGraph workflow"""
 
-        # Определяем граф состояний
+        # Создание графа с GraphState
         workflow = StateGraph(GraphState)
 
-        # Добавляем узлы (агенты)
+        # Добавление узлов
         workflow.add_node("parser", self.parser_agent.process)
         workflow.add_node("quiz_generator", self.quiz_agent.process)
 
-        # Добавляем рёбра (связи между агентами)
-        workflow.set_entry_point("parser")  # Начинаем с парсера
-        workflow.add_edge("parser", "quiz_generator")  # Parser -> Quiz
-        workflow.add_edge("quiz_generator", END)  # Quiz -> Конец
+        # Определение рёбер
+        workflow.set_entry_point("parser")
+        workflow.add_edge("parser", "quiz_generator")
+        workflow.add_edge("quiz_generator", END)
 
-        # Компилируем граф
-        compiled_graph = workflow.compile()
+        # Компиляция
+        compiled = workflow.compile()
 
-        logger.info("Граф успешно построен: parser -> quiz_generator -> END")
-        return compiled_graph
+        logger.info("✓ Workflow скомпилирован: parser → quiz_generator → END")
+        return compiled
 
-    def run(self, lecture_text: str) -> Dict[str, Any]:
+    def run(self, lecture_text: str) -> dict:
         """
         Запуск workflow
 
         Args:
-            lecture_text: текст лекции для анализа
+            lecture_text: текст лекции
 
         Returns:
-            финальное состояние с квизом
+            финальное состояние с результатами
         """
-        logger.info("\n" + "="*70)
-        logger.info("ЗАПУСК WORKFLOW")
-        logger.info("="*70)
+        logger.info(f"Запуск workflow (текст: {len(lecture_text)} символов)")
 
         # Инициализация начального состояния
-        initial_state: GraphState = {
-            "lecture_text": lecture_text,
-            "key_facts": [],
-            "concepts": [],
-            "rag_context": None,
-            "quiz_questions": None,
-            "messages": [],
-            "error": None
-        }
+        initial_state = GraphState(
+            lecture_text=lecture_text,
+            key_facts=[],
+            concepts=[],
+            quiz_questions=[],
+            messages=[],
+            error=None
+        )
 
         try:
-            # Запуск графа
-            final_state = self.graph.invoke(initial_state)
+            # Выполнение workflow
+            final_state = self.workflow.invoke(initial_state)
 
-            logger.info("\n" + "="*70)
+            logger.info("="*70)
             logger.info("WORKFLOW ЗАВЕРШЁН УСПЕШНО")
             logger.info("="*70)
-
-            # Вывод статистики
-            logger.info(f"Извлечено фактов: {len(final_state['key_facts'])}")
-            logger.info(f"Создано концепций: {len(final_state['concepts'])}")
-            if final_state.get('quiz_questions'):
-                logger.info(f"Сгенерировано вопросов: {len(final_state['quiz_questions'])}")
-
+            logger.info(f"Фактов: {len(final_state.get('key_facts', []))}")
+            logger.info(f"Концепций: {len(final_state.get('concepts', []))}")
+            logger.info(f"Вопросов: {len(final_state.get('quiz_questions', []))}")
             logger.info("\nИстория выполнения:")
-            for msg in final_state["messages"]:
+            for msg in final_state.get('messages', []):
                 logger.info(f"  - {msg}")
 
             return final_state
 
         except Exception as e:
-            logger.error(f"\n✗ КРИТИЧЕСКАЯ ОШИБКА WORKFLOW: {e}")
-            raise
+            logger.error(f"Ошибка выполнения workflow: {e}")
+            import traceback
+            traceback.print_exc()
 
-    def visualize_graph(self, output_path: str = "workflow_graph.png"):
-        """
-        Визуализация графа (опционально)
-
-        Args:
-            output_path: путь для сохранения изображения
-        """
-        try:
-            from IPython.display import Image, display
-
-            # Генерируем Mermaid диаграмму
-            mermaid_png = self.graph.get_graph().draw_mermaid_png()
-
-            # Сохраняем
-            with open(output_path, 'wb') as f:
-                f.write(mermaid_png)
-
-            logger.info(f"График сохранен в {output_path}")
-
-            # Отображаем (если в Jupyter)
-            display(Image(mermaid_png))
-
-        except Exception as e:
-            logger.warning(f"Визуализация недоступна: {e}")
+            return {
+                "error": str(e),
+                "key_facts": [],
+                "concepts": [],
+                "quiz_questions": [],
+                "messages": [f"Workflow error: {e}"]
+            }

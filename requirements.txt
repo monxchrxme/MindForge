@@ -1,23 +1,39 @@
-# Core dependencies
-jupyter==1.0.0
-langchain==0.3.7
-langgraph==0.2.45
-langchain-gigachat==0.3.12
-pyyaml==6.0
-pytest==7.4.0
-langchain-core==0.3.21
+# ============================================================================
+# CORE DEPENDENCIES
+# ============================================================================
 
-# Vector store and embeddings
-faiss-cpu==1.9.0.post1
-numpy==1.26.4
+# LangChain ecosystem
+langchain>=0.1.0
+langchain-gigachat>=0.1.0
+langchain-community>=0.0.20
+langchain-core>=0.1.0
 
-# Utilities
-pydantic==2.9.2
-python-dotenv==1.0.0
+# LangGraph для workflow
+langgraph>=0.0.20
 
-# Optional: для логирования и мониторинга
-loguru==0.7.3
+# ============================================================================
+# RAG DEPENDENCIES
+# ============================================================================
 
-# Optional: для веб-поиска
-requests==2.32.3
-beautifulsoup4==4.12.3
+# Vector database
+faiss-cpu>=1.7.4
+
+# ============================================================================
+# DATA & CONFIGURATION
+# ============================================================================
+
+# Data validation
+pydantic>=2.0.0
+
+# Configuration management
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# ============================================================================
+# HTTP & NETWORKING
+# ============================================================================
+
+# HTTP client for API calls
+httpx>=0.25.0
+requests>=2.31.0
+

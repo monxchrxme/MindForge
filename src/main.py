@@ -1,25 +1,25 @@
 """
-Главная точка входа - запуск LangGraph Workflow
-Поддержка загрузки лекций из внешних TXT файлов
+Главная точка входа - LangGraph Workflow с CLI
 """
 
 import sys
-from pathlib import Path
-
-# Добавляем корень проекта в sys.path
-ROOT_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT_DIR))
-
 import os
-import logging
-from dotenv import load_dotenv
+from pathlib import Path
 import argparse
 
-from src.config_loader import load_config
-from src.langgraph.workflow import QuizGenerationWorkflow
-from src.utils.helpers import load_lecture_from_file, format_quiz_results
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
-# Настройка логирования
+import logging
+from dotenv import load_dotenv
+
+from .config_loader import load_config
+from .langgraph.workflow import QuizGenerationWorkflow
+from .utils.helpers import load_lecture_from_file, format_quiz_results
+from .utils.gigachat_client import get_global_token_tracker
+
+load_dotenv()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -30,84 +30,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Загрузка переменных окружения
-load_dotenv()
-
-
-def parse_arguments():
-    """Парсинг аргументов командной строки"""
-    parser = argparse.ArgumentParser(
-        description='Генерация квиза из лекции с помощью LangGraph и GigaChat'
-    )
-
-    parser.add_argument(
-        'lecture_file',
-        type=str,
-        help='Путь к TXT/MD файлу с текстом лекции'
-    )
-
-    parser.add_argument(
-        '--config',
-        type=str,
-        default='config/config.yaml',
-        help='Путь к файлу конфигурации (по умолчанию: config/config.yaml)'
-    )
-
-    parser.add_argument(
-        '--output',
-        type=str,
-        default='quiz_result.json',
-        help='Путь для сохранения результата в JSON (по умолчанию: quiz_result.json)'
-    )
-
-    parser.add_argument(
-        '--no-rag',
-        action='store_true',
-        help='Отключить RAG в Parser Agent'
-    )
-
-    parser.add_argument(
-        '--web-search',
-        action='store_true',
-        help='Включить веб-поиск для обогащения контекста'
-    )
-
-    return parser.parse_args()
-
 
 def main():
-    """Основная функция"""
+    """Основная функция с CLI"""
 
     # Парсинг аргументов
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(description='Генерация квиза из лекции')
+    parser.add_argument('lecture_file', type=str, help='Путь к файлу лекции (.txt/.md)')
+    parser.add_argument('--web-search', action='store_true', help='Включить веб-поиск для проверки фактов')
+    parser.add_argument('--no-rag', action='store_true', help='Отключить RAG (только для коротких текстов)')
+    parser.add_argument('--output', type=str, default='quiz_result.json', help='Файл для сохранения результата')
+    args = parser.parse_args()
 
     logger.info("="*70)
-    logger.info("OBSIDIAN QUIZ PLUGIN - LANGGRAPH WORKFLOW")
+    logger.info("MINDFORGE QUIZ GENERATOR - LANGGRAPH WORKFLOW")
     logger.info("="*70)
 
     try:
         # 1. Загрузка конфигурации
-        logger.info(f"\n1️⃣  Загрузка конфигурации: {args.config}")
-        config = load_config(args.config)
+        logger.info("\n1️⃣  Загрузка конфигурации")
+        config = load_config()
 
-        # Проверка credentials
-        gigachat_credentials = config['gigachat'].get('credentials')
+        gigachat_credentials = os.getenv("GIGACHAT_CREDENTIALS")
         if not gigachat_credentials:
-            raise ValueError(
-                "GIGACHAT_CREDENTIALS не найден.\n"
-                "Добавьте в .env файл:\n"
-                "GIGACHAT_CREDENTIALS=your_api_key_here"
-            )
+            raise ValueError("GIGACHAT_CREDENTIALS не найден в .env")
 
         # 2. Загрузка лекции
         logger.info(f"\n2️⃣  Загрузка лекции: {args.lecture_file}")
         lecture_text = load_lecture_from_file(args.lecture_file)
-        logger.info(f"   Длина текста: {len(lecture_text)} символов")
-        logger.info(f"   Слов: ~{len(lecture_text.split())}")
+        logger.info(f"   📄 Длина: {len(lecture_text)} символов")
+        logger.info(f"   📝 Слов: ~{len(lecture_text.split())}")
 
         # 3. Создание workflow
         logger.info("\n3️⃣  Инициализация LangGraph Workflow")
-
         workflow = QuizGenerationWorkflow(
             gigachat_credentials=gigachat_credentials,
             quiz_config=config,
@@ -124,27 +79,46 @@ def main():
 
         result = workflow.run(lecture_text)
 
-        # 5. Проверка на ошибки
         if result.get("error"):
-            logger.error(f"\n✗ Workflow завершился с ошибкой: {result['error']}")
+            logger.error(f"\n✗ Ошибка: {result['error']}")
+            tracker = get_global_token_tracker()
+            tracker.log_summary()
             sys.exit(1)
 
-        # 6. Вывод результатов
-        logger.info("\n5️⃣  Форматирование и сохранение результатов")
-
+        # 5. Форматирование результатов
+        logger.info("\n5️⃣  Форматирование результатов")
         formatted_output = format_quiz_results(result, output_file=args.output)
         print(formatted_output)
 
-        # 7. Финальная статистика
+        # 6. Вывод статистики токенов
+        logger.info("\n6️⃣  Статистика использования токенов")
+        tracker = get_global_token_tracker()
+        tracker.log_summary()
+
+        usage = tracker.get_summary()
+        print("\n" + "="*70)
+        print("📊 ИСПОЛЬЗОВАНИЕ ТОКЕНОВ GIGACHAT API")
+        print("="*70)
+        print(f"LLM запросов:         {usage['total_requests']}")
+        print(f"  Промпт токенов:     {usage['prompt_tokens']:,}")
+        print(f"  Ответ токенов:      {usage['completion_tokens']:,}")
+        print(f"  Итого LLM:          {usage['total_tokens']:,}")
+        print("-"*70)
+        print(f"Embedding запросов:   {usage['embedding_requests']}")
+        print(f"  Embedding токенов:  {usage['embedding_tokens']:,}")
+        print("-"*70)
+        print(f"ВСЕГО ТОКЕНОВ:        {usage['grand_total_tokens']:,}")
+        print("="*70)
+
+        # Финал
         logger.info("\n" + "="*70)
         logger.info("✓ ГЕНЕРАЦИЯ ЗАВЕРШЕНА УСПЕШНО")
         logger.info("="*70)
-        logger.info(f"Результаты сохранены в: {args.output}")
-        logger.info(f"Логи записаны в: quiz_generation.log")
+        logger.info(f"📁 Результаты: {args.output}")
+        logger.info(f"📋 Логи: quiz_generation.log")
 
     except FileNotFoundError as e:
-        logger.error(f"\n✗ Ошибка: {e}")
-        logger.error("Проверьте путь к файлу лекции")
+        logger.error(f"\n✗ Файл не найден: {e}")
         sys.exit(1)
 
     except ValueError as e:
@@ -155,6 +129,13 @@ def main():
         logger.error(f"\n✗ Критическая ошибка: {e}")
         import traceback
         traceback.print_exc()
+
+        try:
+            tracker = get_global_token_tracker()
+            tracker.log_summary()
+        except:
+            pass
+
         sys.exit(1)
 
 

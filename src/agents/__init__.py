@@ -1,17 +1,17 @@
 """
-Агенты для системы генерации квизов
+Agents package
 """
 
 from .base_agent import BaseAgent
-from .enhanced_parser_agent import EnhancedParserAgent
+from .parser_agent import ParserAgent  # ИЗМЕНЕНО
 from .quiz_agent import QuizAgent, Quiz, Question
 from .adapted_quiz_agent import AdaptedQuizAgent
 
 __all__ = [
-    "BaseAgent",
-    "EnhancedParserAgent",
-    "QuizAgent",
-    "Quiz",
-    "Question",
-    "AdaptedQuizAgent"
+    'BaseAgent',
+    'ParserAgent',  # ИЗМЕНЕНО
+    'QuizAgent',
+    'Quiz',
+    'Question',
+    'AdaptedQuizAgent'
 ]
