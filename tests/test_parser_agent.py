@@ -3,7 +3,7 @@
 """
 
 import pytest
-from src.agents import ParserAgent
+from ..agents import ParserAgent
 
 
 @pytest.fixture

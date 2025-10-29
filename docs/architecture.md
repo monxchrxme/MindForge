@@ -1,4 +1,4 @@
-# Architecture.md - Архитектура проекта MindForge Quiz Plugin
+# Architecture.md - Архитектура проекта MindForge Quiz Plugin.
 
 ## 1. Общий обзор системы
 
@@ -1098,4 +1098,3 @@ User          QuizPipeline      ParserAgent      RAG System       GigaChat API  
 **Дата последнего обновления**: 28 октября 2025  
 **Команда**: MindForge (5 человек)  
 **Контакт**: [GitHub Repository Link]
-
