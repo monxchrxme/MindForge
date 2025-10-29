@@ -6,12 +6,12 @@ from typing import List, Dict, Any
 import logging
 from langchain_core.messages import HumanMessage
 
-from src.agents.base_agent import BaseAgent
-from src.langgraph.state_schema import GraphState, ConceptSchema
-from src.utils.gigachat_client import create_gigachat_parser_client, create_gigachat_embeddings
-from src.rag.chunker import TextChunker
-from src.rag.vector_store import VectorStore
-from src.search.web_search import WebSearchService
+from .base_agent import BaseAgent
+from ..langgraph.state_schema import GraphState, ConceptSchema
+from ..utils.gigachat_client import create_gigachat_parser_client, create_gigachat_embeddings
+from ..rag.chunker import TextChunker
+from ..rag.vector_store import VectorStore
+from ..search.web_search import WebSearchService
 
 logger = logging.getLogger(__name__)
 
