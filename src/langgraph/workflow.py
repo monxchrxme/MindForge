@@ -3,9 +3,9 @@ LangGraph Workflow для координации Parser и Quiz агентов
 """
 
 from langgraph.graph import StateGraph, END
-from src.langgraph.state_schema import GraphState
-from src.agents.parser_agent import ParserAgent  # ИЗМЕНЕНО: новый импорт
-from src.agents.adapted_quiz_agent import AdaptedQuizAgent
+from ..langgraph.state_schema import GraphState
+from ..agents.parser_agent import ParserAgent  # ИЗМЕНЕНО: новый импорт
+from ..agents.adapted_quiz_agent import AdaptedQuizAgent
 import logging
 
 logger = logging.getLogger(__name__)
