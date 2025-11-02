@@ -23,6 +23,10 @@ class TextChunker:
             chunk_overlap=chunk_overlap,
             length_function=len
         )
+        """
+        Создание объекта, который будет рекурсивно разбивать текст, 
+        пока не будет достигнут нужный размер 
+        """
         logger.info(f"TextChunker инициализирован (size={chunk_size}, overlap={chunk_overlap})")
 
     def split(self, text: str) -> List[str]:
