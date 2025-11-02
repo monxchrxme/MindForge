@@ -20,9 +20,12 @@ from .utils.gigachat_client import get_global_token_tracker
 
 load_dotenv()
 
+"""
+Настройка логов
+"""
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO, # Наименьший уровень инфы для вывода в лог
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', # Формат вывода в логе
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler('quiz_generation.log', encoding='utf-8')
