@@ -5,7 +5,6 @@ Utils package
 from .gigachat_client import (
     create_gigachat_parser_client,
     create_gigachat_quiz_client,
-    create_gigachat_embeddings,
     get_global_token_tracker
 )
 from .helpers import load_lecture_from_file, format_quiz_results
