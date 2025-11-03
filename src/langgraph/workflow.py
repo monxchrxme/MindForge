@@ -18,7 +18,6 @@ class QuizGenerationWorkflow:
         self,
         gigachat_credentials: str,
         quiz_config: dict,
-        use_rag: bool = True,
         enable_web_search: bool = False
     ):
         """
@@ -27,13 +26,11 @@ class QuizGenerationWorkflow:
         Args:
             gigachat_credentials: GigaChat API credentials
             quiz_config: конфигурация для Quiz Agent
-            use_rag: использовать ли RAG
             enable_web_search: проверять ли факты через веб-поиск
         """
         # ИЗМЕНЕНО: используем ParserAgent вместо EnhancedParserAgent
         self.parser_agent = ParserAgent(
             gigachat_credentials=gigachat_credentials,
-            use_rag=use_rag,
             enable_web_search=enable_web_search
         )
 
@@ -44,7 +41,6 @@ class QuizGenerationWorkflow:
 
         logger.info(
             f"QuizGenerationWorkflow инициализирован "
-            f"(RAG={use_rag}, WebSearch={enable_web_search})"
         )
 
     def _build_workflow(self) -> StateGraph:

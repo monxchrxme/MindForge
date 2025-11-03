@@ -69,7 +69,6 @@ def main():
         workflow = QuizGenerationWorkflow(
             gigachat_credentials=gigachat_credentials,
             quiz_config=config,
-            use_rag=not args.no_rag, # rag
             enable_web_search=args.web_search
         )
 
