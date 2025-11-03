@@ -41,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(description='Генерация квиза из лекции')
     parser.add_argument('lecture_file', type=str, help='Путь к файлу лекции (.txt/.md)')
     parser.add_argument('--web-search', action='store_true', help='Включить веб-поиск для проверки фактов')
-    parser.add_argument('--no-rag', action='store_true', help='Отключить RAG (только для коротких текстов)')
+    parser.add_argument('--no-rag', action='store_true', help='Отключить RAG (только для коротких текстов)') #rag
     parser.add_argument('--output', type=str, default='quiz_result.json', help='Файл для сохранения результата')
     args = parser.parse_args()
 
@@ -69,11 +69,11 @@ def main():
         workflow = QuizGenerationWorkflow(
             gigachat_credentials=gigachat_credentials,
             quiz_config=config,
-            use_rag=not args.no_rag,
+            use_rag=not args.no_rag, # rag
             enable_web_search=args.web_search
         )
 
-        logger.info(f"   RAG: {'✓ Включен' if not args.no_rag else '✗ Отключен'}")
+        logger.info(f"   RAG: {'✓ Включен' if not args.no_rag else '✗ Отключен'}") #rag
         logger.info(f"   Веб-поиск: {'✓ Включен' if args.web_search else '✗ Отключен'}")
 
         # 4. Запуск workflow
@@ -106,11 +106,6 @@ def main():
         print(f"  Промпт токенов:     {usage['prompt_tokens']:,}")
         print(f"  Ответ токенов:      {usage['completion_tokens']:,}")
         print(f"  Итого LLM:          {usage['total_tokens']:,}")
-        print("-"*70)
-        print(f"Embedding запросов:   {usage['embedding_requests']}")
-        print(f"  Embedding токенов:  {usage['embedding_tokens']:,}")
-        print("-"*70)
-        print(f"ВСЕГО ТОКЕНОВ:        {usage['grand_total_tokens']:,}")
         print("="*70)
 
         # Финал

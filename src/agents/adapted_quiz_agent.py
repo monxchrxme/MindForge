@@ -2,11 +2,11 @@
 Adapted Quiz Agent - адаптация под LangGraph и единый формат данных
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 from ..langgraph.state_schema import GraphState, ConceptSchema
 # Импортируем оригинальные классы из quiz_agent.py
-from .quiz_agent import QuizAgent as OriginalQuizAgent, Quiz, Question
+from .quiz_agent import QuizAgent as OriginalQuizAgent
 
 logger = logging.getLogger(__name__)
 

@@ -2,15 +2,13 @@
 Parser Agent с RAG и веб-поиском
 """
 
-from typing import List, Dict, Any
+from typing import List
 import logging
 from langchain_core.messages import HumanMessage
 
 from .base_agent import BaseAgent
 from ..langgraph.state_schema import GraphState, ConceptSchema
-from ..utils.gigachat_client import create_gigachat_parser_client, create_gigachat_embeddings
-from ..rag.chunker import TextChunker
-from ..rag.vector_store import VectorStore
+from ..utils.gigachat_client import create_gigachat_parser_client
 from ..search.web_search import WebSearchService
 
 logger = logging.getLogger(__name__)
@@ -22,7 +20,7 @@ class ParserAgent(BaseAgent):
     def __init__(
         self,
         gigachat_credentials: str,
-        use_rag: bool = True,
+        use_rag: bool = True, # RAG
         enable_web_search: bool = False
     ):
         """
@@ -36,18 +34,13 @@ class ParserAgent(BaseAgent):
         super().__init__("ParserAgent")
 
         self.gigachat_credentials = gigachat_credentials
-        self.use_rag = use_rag
+
         self.enable_web_search = enable_web_search
 
         # GigaChat клиент с подсчетом токенов
         self.llm = create_gigachat_parser_client()
 
-        # RAG компоненты
-        if self.use_rag:
-            self.chunker = TextChunker(chunk_size=500, chunk_overlap=100)
-            self.embeddings = create_gigachat_embeddings()
-            self.vector_store = VectorStore(self.embeddings)
-            logger.info("✓ RAG инициализирован")
+
 
         # Web Search - ИСПРАВЛЕНО: убран аргумент search_provider
         if self.enable_web_search:
@@ -56,7 +49,6 @@ class ParserAgent(BaseAgent):
 
         logger.info(
             f"ParserAgent готов: "
-            f"RAG={'ON' if use_rag else 'OFF'}, "
             f"WebSearch={'ON' if enable_web_search else 'OFF'}"
         )
 
@@ -83,12 +75,12 @@ class ParserAgent(BaseAgent):
             logger.info(f"📝 Текст лекции: {len(lecture_text)} символов")
 
             # Извлечение фактов (с RAG или без)
-            if self.use_rag and len(lecture_text) > 1000:
-                logger.info("🔍 Режим: RAG (текст > 1000 символов)")
-                facts = self._extract_facts_with_rag(lecture_text)
-            else:
-                logger.info("📄 Режим: прямая обработка")
+            if len(lecture_text) < 8000: #rag
+                logger.info("📄 Прямая обработка")
                 facts = self._extract_facts_direct(lecture_text)
+            else:
+                logger.info("📄 Обрезанная обработка (до 8000)")
+                facts = self._extract_facts_direct(lecture_text[:8000])
 
             logger.info(f"✓ Извлечено {len(facts)} фактов")
 
@@ -125,31 +117,6 @@ class ParserAgent(BaseAgent):
             state["error"] = str(e)
             state["messages"].append(f"Parser: ОШИБКА - {e}")
             return state
-
-    def _extract_facts_with_rag(self, lecture_text: str) -> List[str]:
-        """Извлечение фактов с использованием RAG"""
-        logger.info("🔍 RAG: Шаг 1/4 - Разбиение текста на чанки")
-        chunks = self.chunker.split(lecture_text)
-        logger.info(f"   Создано {len(chunks)} чанков")
-
-        logger.info("🔍 RAG: Шаг 2/4 - Создание векторного индекса FAISS")
-        self.vector_store.create_from_texts(chunks)
-
-        logger.info("🔍 RAG: Шаг 3/4 - Семантический поиск релевантных фрагментов")
-        query = "Основные концепции, определения, формулы и ключевые факты"
-        relevant_docs = self.vector_store.similarity_search(query, k=min(5, len(chunks)))
-
-        logger.info(f"   Найдено {len(relevant_docs)} релевантных фрагментов")
-
-        # Объединяем релевантные чанки в единый контекст
-        context = "\n\n".join([doc.page_content for doc in relevant_docs])
-        logger.info(f"   Объединённый контекст: {len(context)} символов")
-
-        logger.info("🔍 RAG: Шаг 4/4 - Извлечение фактов через LLM")
-        facts = self._extract_facts_from_context(context)
-
-        logger.info(f"✓ RAG завершён: извлечено {len(facts)} фактов")
-        return facts
 
     def _extract_facts_direct(self, lecture_text: str) -> List[str]:
         """Прямое извлечение фактов без RAG"""

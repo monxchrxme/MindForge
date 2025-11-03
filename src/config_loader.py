@@ -5,7 +5,7 @@
 import yaml
 import os
 from dotenv import load_dotenv
-from pathlib import Path
+
 
 
 def load_config(config_path: str = "config/config.yaml") -> dict:

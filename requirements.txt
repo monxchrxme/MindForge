@@ -5,18 +5,11 @@
 # LangChain ecosystem
 langchain>=0.1.0
 langchain-gigachat>=0.1.0
-langchain-community>=0.0.20
 langchain-core>=0.1.0
 
 # LangGraph для workflow
 langgraph>=0.0.20
 
-# ============================================================================
-# RAG DEPENDENCIES
-# ============================================================================
-
-# Vector database
-faiss-cpu>=1.7.4
 
 # ============================================================================
 # DATA & CONFIGURATION
