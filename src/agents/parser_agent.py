@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ParserAgent(BaseAgent):
-    """Parser Agent с RAG и веб-поиском для проверки фактов"""
+    """Parser Agent с веб-поиском для проверки фактов"""
 
     def __init__(
         self,
@@ -28,7 +28,6 @@ class ParserAgent(BaseAgent):
 
         Args:
             gigachat_credentials: GigaChat credentials
-            use_rag: использовать RAG для длинных текстов
             enable_web_search: проверять факты через веб-поиск
         """
         super().__init__("ParserAgent")
@@ -74,8 +73,8 @@ class ParserAgent(BaseAgent):
 
             logger.info(f"📝 Текст лекции: {len(lecture_text)} символов")
 
-            # Извлечение фактов (с RAG или без)
-            if len(lecture_text) < 8000: #rag
+            # Извлечение фактов
+            if len(lecture_text) < 8000:
                 logger.info("📄 Прямая обработка")
                 facts = self._extract_facts_direct(lecture_text)
             else:
@@ -125,6 +124,7 @@ class ParserAgent(BaseAgent):
 
     def _extract_facts_from_context(self, context: str) -> List[str]:
         """Извлечение фактов из контекста через LLM"""
+        #TODO Поменять промт на нормальный
         prompt = f"""Проанализируй текст лекции и извлеки 5-10 ключевых фактов.
 
 Текст:
@@ -175,7 +175,8 @@ class ParserAgent(BaseAgent):
         concepts = []
 
         for i, fact in enumerate(facts):
-            # Определяем важность: первые 3 - high, 4-6 - medium, остальные - low
+            # Определяем важность: первые 3 - high, 4-6 - medium, остальные -
+            #TODO исправить недоразумение
             if i < 3:
                 importance = "high"
             elif i < 6:

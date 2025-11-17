@@ -23,7 +23,6 @@ class GraphState(TypedDict):
         lecture_text: исходный текст лекции
         key_facts: извлеченные ключевые факты (список строк)
         concepts: концепции в едином формате
-        rag_context: дополнительный контекст из RAG
         quiz_questions: сгенерированные вопросы
         messages: история сообщений для логирования
         error: информация об ошибках
