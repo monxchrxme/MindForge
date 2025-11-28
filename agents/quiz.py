@@ -70,7 +70,6 @@ class QuizAgent:
         avoid_part = ""
         if avoid_history:
             avoid_part = (
-                    "Не генерируй вопросы, похожие на эти формулировки:\n" +
                     "\n".join(list(avoid_history))
             )
         concept_part = "\n".join([
