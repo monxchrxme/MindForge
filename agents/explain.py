@@ -47,7 +47,7 @@ class ExplainAgent:
         self.mnemonic_style = self.config.get("mnemonic_style", "absurd")
         self.timeout = self.config.get("response_timeout", 30)
 
-    def explain(
+    def explain_error(
             self,
             user_answer: str,
             correct_answer: str,
@@ -102,9 +102,9 @@ class ExplainAgent:
             )
 
             # Запрос к GigaChat
-            llm_response = self.gigachat_client.send_message(
+            llm_response = self.gigachat_client.generate(
                 prompt=prompt,
-                timeout=self.timeout
+                #timeout=self.timeout
             )
 
             # Парсинг ответа LLM

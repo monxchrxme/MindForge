@@ -8,7 +8,7 @@
   },
 
   "quiz_settings": {
-    "questions_count": 5,
+    "questions_count": 10,
     "difficulty": "medium",
     "question_types": [
       "multiple_choice",

@@ -1,10 +1,9 @@
-# services/gigachat_client.py
-
 from langchain_gigachat import GigaChat
 from typing import Any, Dict, List, Union
 import json
 import logging
 import re
+
 
 logger = logging.getLogger(__name__)
 

@@ -59,7 +59,7 @@ class OrchestratorAgent:
             difficulty=quiz_settings.get("difficulty", "medium")
         )
 
-        self.explainer = ExplainAgent(client=self.client)
+        self.explainer = ExplainAgent(gigachat_client=self.client)
 
         # Настройки
         self.factcheck_enabled = config.get("enable_fact_check", True)
@@ -275,10 +275,10 @@ class OrchestratorAgent:
                 logger.info(f"Wrong answer for question {question_id}, generating explanation")
 
                 explanation_data = self.explainer.explain_error(
-                    question_text=question_text,
-                    user_ans=user_answer,
-                    correct_ans=correct_answer,
-                    concept_def=concept_definition
+                    question=question_text,
+                    user_answer=user_answer,
+                    correct_answer=correct_answer,
+                    concept=concept_definition
                 )
 
                 result["explanation"] = explanation_data.get("explanation_text", "")

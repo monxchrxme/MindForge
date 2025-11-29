@@ -16,7 +16,6 @@
     - CacheManager экономит токены через файловый кэш
     - Все взаимодействие с LLM через GigaChatClient
 """
-
 import json
 import logging
 import os
@@ -122,12 +121,12 @@ def load_credentials() -> dict:
     load_dotenv()
 
     client_id = os.getenv('GIGACHAT_CLIENT_ID')
-    client_secret = os.getenv('GIGACHAT_CLIENT_SECRET')
+    client_secret = os.getenv('GIGACHAT_CREDENTIALS') #
 
     if not client_id or not client_secret:
         logger.error("Missing required environment variables")
         raise ValueError(
-            "GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET must be set in .env file"
+            "GIGACHAT_CLIENT_ID and GIGACHAT_CREDENTIALS must be set in .env file"
         )
 
     logger.info("Credentials loaded successfully")
