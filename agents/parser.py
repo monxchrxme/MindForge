@@ -1,7 +1,9 @@
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
-from utils.hashing import get_hash
+from utils.hashing import compute_hash
+import logging
 
+logger = logging.getLogger(__name__)
 class ParserAgent:
     def __init__(self, client: GigaChatClient, cache_manager: CacheManager, cache_enabled: bool = True):
         """
@@ -22,7 +24,7 @@ class ParserAgent:
         4. Сохраняет результат в кэш при необходимости.
         5. Возвращает список концептов (list of dict).
         """
-        note_hash = get_hash(text)
+        note_hash = compute_hash(text)
         if self.cache_enabled:
             cached = self.cache_manager.get(note_hash)
             if cached is not None:

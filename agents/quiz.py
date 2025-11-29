@@ -1,5 +1,7 @@
 # agents/quiz.py
-
+#TODO Сис промт логируется, чзх
+#TODO убрать почти все в дебаг
+#TODO много тру фолс
 from typing import List, Dict, Set, Any
 from services.gigachat_client import GigaChatClient
 import uuid

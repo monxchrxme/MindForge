@@ -1,5 +1,4 @@
-# agents/explain.py
-
+#TODO Убрать концепты
 """
 ExplainAgent — Агент объяснения ошибок и создания мнемонических образов.
 
@@ -48,7 +47,6 @@ class ExplainAgent:
         question_text: str,
         user_ans: str,
         correct_ans: str,
-        concept_def: str
     ) -> Dict[str, str]:
         """
         Основной публичный метод. Генерирует объяснение ошибки и мнемонический образ.
@@ -65,7 +63,6 @@ class ExplainAgent:
             question_text: str — текст вопроса для контекста
             user_ans: str — неправильный ответ пользователя
             correct_ans: str — правильный ответ
-            concept_def: str — определение концепта (от metadata вопроса)
 
         Returns:
             Dict с полями:
@@ -78,7 +75,7 @@ class ExplainAgent:
         try:
             # Валидация входных данных
             validation_error = self._validate_input(
-                question_text, user_ans, correct_ans, concept_def
+                question_text, user_ans, correct_ans
             )
             if validation_error:
                 logger.warning(f"Validation error: {validation_error}")
@@ -89,7 +86,6 @@ class ExplainAgent:
                 question_text=question_text,
                 user_ans=user_ans,
                 correct_ans=correct_ans,
-                concept_def=concept_def
             )
 
             logger.debug("Sending request to GigaChat...")
@@ -126,7 +122,6 @@ class ExplainAgent:
         question_text: str,
         user_ans: str,
         correct_ans: str,
-        concept_def: str
     ) -> Optional[str]:
         """
         Проверка входных параметров на корректность.
@@ -135,7 +130,6 @@ class ExplainAgent:
             question_text: str
             user_ans: str
             correct_ans: str
-            concept_def: str
 
         Returns:
             str — сообщение об ошибке, или None если валидно
@@ -150,9 +144,6 @@ class ExplainAgent:
         if not isinstance(correct_ans, str) or not correct_ans.strip():
             return "correct_ans должен быть непустой строкой"
 
-        if not isinstance(concept_def, str) or not concept_def.strip():
-            return "concept_def должен быть непустой строкой"
-
         # Проверка, что ответы не совпадают
         if user_ans.strip().lower() == correct_ans.strip().lower():
             return "Ответы совпадают — это не ошибка"
@@ -164,7 +155,6 @@ class ExplainAgent:
         question_text: str,
         user_ans: str,
         correct_ans: str,
-        concept_def: str
     ) -> str:
         """
         Построение структурированного промпта для LLM.
@@ -173,7 +163,6 @@ class ExplainAgent:
             question_text: str
             user_ans: str
             correct_ans: str
-            concept_def: str
 
         Returns:
             str — готовый промпт для отправки в GigaChat через LangChain
@@ -188,7 +177,6 @@ class ExplainAgent:
 - Вопрос: {question_text}
 - Ответ студента (неправильно): {user_ans}
 - Правильный ответ: {correct_ans}
-- Определение концепта: {concept_def}
 
 ТРЕБОВАНИЯ К ОТВЕТУ:
 1. Объяснение: 2-3 предложения, дружелюбное, без критики.
@@ -235,7 +223,6 @@ class ExplainAgent:
                     question_text=error_data.get("question_text", ""),
                     user_ans=error_data.get("user_ans", ""),
                     correct_ans=error_data.get("correct_ans", ""),
-                    concept_def=error_data.get("concept_def", "")
                 )
                 results.append(result)
             except Exception as e:
