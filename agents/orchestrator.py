@@ -1,5 +1,9 @@
 # agents/orchestrator.py
 
+import logging
+import json
+from typing import Any, Dict, List, Set, Optional
+
 from agents.parser import ParserAgent
 from agents.factcheck import FactCheckAgent
 from agents.quiz import QuizAgent
@@ -7,8 +11,6 @@ from agents.explain import ExplainAgent
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
 from utils.hashing import compute_hash
-from typing import Any, Dict, List, Set, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,8 @@ logger = logging.getLogger(__name__)
 class OrchestratorAgent:
     """
     Центральный координатор мульти-агентной системы.
-    Единственный класс, который хранит состояние («память») текущей сессии.
     Управляет потоком данных между специализированными агентами.
+    Логирует все входящие и исходящие данные для отладки.
     """
 
     def __init__(
@@ -26,16 +28,18 @@ class OrchestratorAgent:
             credentials: dict,
             cache_manager: CacheManager
     ):
-        """
-        Инициализация оркестратора и всех подчиненных агентов.
+        """Инициализация оркестратора и всех подчиненных агентов."""
+        logger.info("=" * 70)
+        logger.info("ORCHESTRATOR INITIALIZATION")
+        logger.info("=" * 70)
 
-        Args:
-            config: Настройки из config.json (llm_settings, quiz_settings, etc.)
-            credentials: Словарь с ключами GigaChat (client_id, client_secret)
-            cache_manager: Менеджер файлового кэша для экономии токенов
-        """
+        self.config = config
+        self.cache_manager = cache_manager
+
         # Инициализация клиента GigaChat
         llm_settings = config.get("llm_settings", {})
+        logger.info(f"LLM Settings: model={llm_settings.get('model')}, temp={llm_settings.get('temperature')}")
+
         self.client = GigaChatClient(
             credentials=credentials,
             model=llm_settings.get("model", "GigaChat"),
@@ -44,6 +48,8 @@ class OrchestratorAgent:
 
         # Инициализация агентов
         cache_enabled = config.get("cache_enabled", True)
+        logger.info(f"Initializing agents (cache_enabled={cache_enabled})...")
+
         self.parser = ParserAgent(
             client=self.client,
             cache_manager=cache_manager,
@@ -52,240 +58,272 @@ class OrchestratorAgent:
 
         self.fact_checker = FactCheckAgent(client=self.client)
 
-        quiz_settings = config.get("quiz_settings", {})
+        self.default_quiz_settings = config.get("quiz_settings", {})
         self.quiz_generator = QuizAgent(
             client=self.client,
-            questions_count=quiz_settings.get("questions_count", 5),
-            difficulty=quiz_settings.get("difficulty", "medium")
+            questions_count=self.default_quiz_settings.get("questions_count", 5),
+            difficulty=self.default_quiz_settings.get("difficulty", "medium")
         )
 
         self.explainer = ExplainAgent(gigachat_client=self.client)
 
         # Настройки
         self.factcheck_enabled = config.get("enable_fact_check", True)
+        logger.info(f"FactCheck enabled: {self.factcheck_enabled}")
 
-        # Состояние сессии (оперативная память)
+        # Состояние сессии
         self.current_note_hash: str = ""
-        self.current_note_text: str = ""
-        self.extracted_concepts: List[Dict] = []
         self.verified_concepts: List[Dict] = []
         self.current_quiz: List[Dict] = []
         self.quiz_history: Set[str] = set()
 
-        # Статистика прохождения
+        # Статистика
         self.user_score: int = 0
         self.total_questions_answered: int = 0
 
-        logger.info("OrchestratorAgent initialized successfully")
+        logger.info("✓ OrchestratorAgent initialized successfully")
+        logger.info("=" * 70)
 
-    def start_new_session(self, note_text: str) -> Dict[str, Any]:
+    def process_note_pipeline(
+            self,
+            note_text: str,
+            questions_count: int = None,
+            difficulty: str = None,
+            force_reparse: bool = False
+    ) -> Dict[str, Any]:
         """
-        Запуск нового сценария: анализ заметки → проверка фактов → генерация квиза.
-
-        Workflow:
-        1. Сброс предыдущего состояния
-        2. Парсинг текста заметки (ParserAgent)
-        3. Проверка фактов (FactCheckAgent, если включен)
-        4. Генерация вопросов (QuizAgent)
-        5. Обновление истории
+        Полный пайплайн обработки заметки с детальным логированием.
 
         Args:
-            note_text: Текст учебной заметки студента
+            note_text: Текст учебной заметки
+            questions_count: Количество вопросов (опционально)
+            difficulty: Сложность вопросов (опционально)
+            force_reparse: Игнорировать кэш и выполнить полный парсинг
 
         Returns:
-            Dict с ключами:
-                - status: "success" | "error"
-                - quiz: List[Dict] - сгенерированные вопросы
-                - concepts_count: int - количество извлеченных концептов
-                - message: str - информационное сообщение
+            Dict с результатом генерации квиза
         """
-        try:
-            logger.info("Starting new session")
+        logger.info("\n" + "=" * 70)
+        logger.info("ORCHESTRATOR: process_note_pipeline() STARTED")
+        logger.info("=" * 70)
+        logger.info(f"Input parameters:")
+        logger.info(f"  - note_text length: {len(note_text)} chars")
+        logger.info(f"  - questions_count: {questions_count}")
+        logger.info(f"  - difficulty: {difficulty}")
+        logger.info(f"  - force_reparse: {force_reparse}")
 
-            # Шаг 1: Сброс состояния
+        try:
             self._reset_session()
-            self.current_note_text = note_text
             self.current_note_hash = compute_hash(note_text)
+            logger.info(f"Note hash computed: {self.current_note_hash}")
 
-            logger.info(f"Note hash: {self.current_note_hash[:16]}...")
+            if force_reparse:
+                logger.warning("⚠️ FORCE REPARSE MODE: Cache will be ignored")
 
-            # Шаг 2: Извлечение концептов (с кэшем)
-            logger.info("Step 1/3: Parsing concepts from note")
-            self.extracted_concepts = self.parser.parse_note(note_text)
+            # Обновление настроек квиза
+            if questions_count or difficulty:
+                logger.info(f"Updating quiz settings (count={questions_count}, difficulty={difficulty})")
+                self._update_quiz_settings(questions_count, difficulty)
 
-            if not self.extracted_concepts:
-                return {
-                    "status": "error",
-                    "message": "Не удалось извлечь концепты из заметки. Возможно, текст слишком короткий или содержит мало образовательной информации."
-                }
+            # === SMART CACHE CHECK ===
+            verified_cache_key = f"verified_{self.current_note_hash}"
+            cached_verified = None
 
-            logger.info(f"Extracted {len(self.extracted_concepts)} concepts")
-
-            # Шаг 3: Проверка фактов (опционально)
-            if self.factcheck_enabled:
-                logger.info("Step 2/3: Fact-checking concepts")
-                self.verified_concepts = self.fact_checker.verify_concepts(
-                    self.extracted_concepts
-                )
-                logger.info(f"Verified {len(self.verified_concepts)} concepts")
+            if not force_reparse and self.cache_manager.exists(verified_cache_key):
+                logger.info("✓ Verified cache found, loading...")
+                cached_verified = self.cache_manager.load(verified_cache_key)
+                logger.info(f"✓ Loaded {len(cached_verified)} verified concepts from cache")
+                self._log_data_transfer("CacheManager", "Orchestrator", cached_verified, "verified_concepts")
+            elif force_reparse:
+                logger.info("⚠️ Skipping cache lookup (force mode)")
             else:
-                logger.info("Fact-check disabled, skipping")
-                self.verified_concepts = self.extracted_concepts
+                logger.info("✗ Verified cache not found")
 
-            # Шаг 4: Генерация вопросов
-            logger.info("Step 3/3: Generating quiz questions")
+            if cached_verified and not force_reparse:
+                # Горячий старт
+                self.verified_concepts = cached_verified
+            else:
+                # === ХОЛОДНЫЙ СТАРТ ===
+                logger.info("\n" + "-" * 70)
+                logger.info("COLD START: Running full analysis pipeline")
+                logger.info("-" * 70)
+
+                # STEP 1: Парсинг
+                logger.info("\n>>> CALLING ParserAgent.parse_note()")
+                self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
+
+                extracted = self.parser.parse_note(note_text)
+
+                self._log_data_transfer("ParserAgent", "Orchestrator", extracted, "extracted_concepts")
+
+                if not extracted:
+                    logger.error("ParserAgent returned empty result")
+                    return {
+                        "status": "error",
+                        "message": "Не удалось извлечь концепты из текста."
+                    }
+                logger.info(f"✓ Received {len(extracted)} concepts from ParserAgent")
+
+                # STEP 2: Фактчек
+                if self.factcheck_enabled:
+                    logger.info("\n>>> CALLING FactCheckAgent.verify_concepts()")
+                    self._log_data_transfer("Orchestrator", "FactCheckAgent", extracted, "concepts_to_verify")
+
+                    self.verified_concepts = self.fact_checker.verify_concepts(extracted)
+
+                    self._log_data_transfer("FactCheckAgent", "Orchestrator", self.verified_concepts,
+                                            "verified_concepts")
+                    logger.info(f"✓ Received {len(self.verified_concepts)} verified concepts")
+                else:
+                    logger.info("FactCheck disabled, using raw concepts")
+                    self.verified_concepts = extracted
+
+                # STEP 3: Сохранение в кэш
+                logger.info(f"\n>>> SAVING to verified cache (key: {verified_cache_key[:32]}...)")
+                self.cache_manager.save(verified_cache_key, self.verified_concepts)
+                logger.info("✓ Verified concepts saved to cache")
+
+            # === ГЕНЕРАЦИЯ КВИЗА ===
+            logger.info("\n" + "-" * 70)
+            logger.info("QUIZ GENERATION")
+            logger.info("-" * 70)
+            logger.info(f"Concepts available: {len(self.verified_concepts)}")
+            logger.info(f"Quiz history size: {len(self.quiz_history)}")
+
+            logger.info("\n>>> CALLING QuizAgent.generate_questions()")
+            self._log_data_transfer("Orchestrator", "QuizAgent", {
+                "concepts": self.verified_concepts,
+                "avoid_history": list(self.quiz_history)
+            }, "generation_params")
+
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
                 avoid_history=self.quiz_history
             )
 
+            self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
+
             if not self.current_quiz:
+                logger.error("QuizAgent returned empty quiz")
                 return {
                     "status": "error",
-                    "message": "Не удалось сгенерировать вопросы. Попробуйте другую заметку."
+                    "message": "Не удалось сгенерировать вопросы."
                 }
 
-            # Шаг 5: Обновление истории
+            logger.info(f"✓ Received {len(self.current_quiz)} questions from QuizAgent")
             self._update_history(self.current_quiz)
 
-            logger.info(f"Quiz generated successfully: {len(self.current_quiz)} questions")
+            cache_status = "из кэша" if (cached_verified and not force_reparse) else "новый анализ"
 
-            return {
+            result = {
                 "status": "success",
                 "quiz": self.current_quiz,
                 "concepts_count": len(self.verified_concepts),
-                "message": f"Квиз успешно создан! Найдено концептов: {len(self.verified_concepts)}, вопросов: {len(self.current_quiz)}"
+                "message": f"Квиз готов! Концептов: {len(self.verified_concepts)}, "
+                           f"вопросов: {len(self.current_quiz)} ({cache_status})"
             }
+
+            logger.info("\n" + "=" * 70)
+            logger.info("ORCHESTRATOR: process_note_pipeline() COMPLETED")
+            logger.info(f"Result: {result['status']}")
+            logger.info("=" * 70 + "\n")
+
+            return result
 
         except Exception as e:
-            logger.error(f"Error in start_new_session: {str(e)}", exc_info=True)
+            logger.error(f"Pipeline error: {str(e)}", exc_info=True)
             return {
                 "status": "error",
-                "message": f"Произошла ошибка: {str(e)}"
-            }
-
-    def regenerate_quiz(self) -> Dict[str, Any]:
-        """
-        Регенерация квиза по тем же концептам, но с новыми вопросами.
-        Использует уже извлеченные и проверенные концепты (экономия токенов).
-
-        Returns:
-            Dict с тем же форматом, что и start_new_session
-        """
-        try:
-            logger.info("Regenerating quiz with new questions")
-
-            if not self.verified_concepts:
-                return {
-                    "status": "error",
-                    "message": "Нет сохраненных концептов. Сначала вызовите start_new_session()."
-                }
-
-            # Генерация новых вопросов с учетом истории
-            self.current_quiz = self.quiz_generator.generate_questions(
-                concepts=self.verified_concepts,
-                avoid_history=self.quiz_history
-            )
-
-            if not self.current_quiz:
-                # История может быть переполнена - сбрасываем
-                logger.warning("Cannot generate new questions, clearing history")
-                self.quiz_history.clear()
-
-                self.current_quiz = self.quiz_generator.generate_questions(
-                    concepts=self.verified_concepts,
-                    avoid_history=set()
-                )
-
-            # Обновление истории новыми вопросами
-            self._update_history(self.current_quiz)
-
-            # Сброс счетчика для нового прохождения
-            self.user_score = 0
-            self.total_questions_answered = 0
-
-            logger.info(f"Quiz regenerated: {len(self.current_quiz)} new questions")
-
-            return {
-                "status": "success",
-                "quiz": self.current_quiz,
-                "concepts_count": len(self.verified_concepts),
-                "message": f"Квиз обновлен! Новых вопросов: {len(self.current_quiz)}"
-            }
-
-        except Exception as e:
-            logger.error(f"Error in regenerate_quiz: {str(e)}", exc_info=True)
-            return {
-                "status": "error",
-                "message": f"Ошибка при регенерации: {str(e)}"
+                "message": f"System Error: {str(e)}"
             }
 
     def submit_answer(self, question_id: str, user_answer: str) -> Dict[str, Any]:
         """
-        Проверка ответа пользователя на вопрос.
-        При ошибке вызывает ExplainAgent для генерации подсказки.
+        Проверка ответа пользователя с детальным логированием.
 
         Args:
-            question_id: Уникальный идентификатор вопроса
-            user_answer: Ответ пользователя (индекс варианта или "true"/"false")
+            question_id: ID вопроса
+            user_answer: Ответ пользователя
 
         Returns:
-            Dict с ключами:
-                - status: "correct" | "incorrect" | "error"
-                - is_correct: bool
-                - correct_answer: str
-                - explanation: Optional[str] - объяснение ошибки
-                - memory_palace: Optional[str] - мнемонический образ
-                - score: int - текущий счет
-                - progress: str - прогресс (например, "3/5")
+            Dict с результатом проверки
         """
-        try:
-            # Поиск вопроса в текущем квизе
-            question = self._find_question_by_id(question_id)
+        logger.info("\n" + "=" * 60)
+        logger.info("ORCHESTRATOR: submit_answer() called")
+        logger.info(f"Input: question_id={question_id}, user_answer={user_answer}")
 
+        try:
+            # Поиск вопроса
+            question = self._find_question_by_id(question_id)
             if not question:
+                logger.error(f"Question {question_id} not found in current quiz")
                 return {
                     "status": "error",
                     "message": f"Вопрос с ID {question_id} не найден"
                 }
 
-            # Извлечение правильного ответа
-            correct_answer = question.get("correct_answer")
-            question_text = question.get("question", "")
-            concept_definition = question.get("concept_definition", "")
+            logger.debug(f"Found question: {question.get('question', '')[:50]}...")
 
-            # Проверка правильности
+            correct_answer = question.get("correct_answer")
             is_correct = str(user_answer).lower().strip() == str(correct_answer).lower().strip()
+
+            logger.info(f"Comparison: user='{user_answer}' vs correct='{correct_answer}' => {is_correct}")
 
             # Обновление статистики
             self.total_questions_answered += 1
             if is_correct:
                 self.user_score += 1
 
+            logger.info(f"Score updated: {self.user_score}/{self.total_questions_answered}")
+
             result = {
                 "status": "correct" if is_correct else "incorrect",
                 "is_correct": is_correct,
                 "correct_answer": correct_answer,
                 "score": self.user_score,
-                "progress": f"{self.total_questions_answered}/{len(self.current_quiz)}"
+                "total": len(self.current_quiz)
             }
 
             # Генерация объяснения при ошибке
             if not is_correct:
-                logger.info(f"Wrong answer for question {question_id}, generating explanation")
+                logger.info("\n>>> Wrong answer, calling ExplainAgent")
+
+                # Сборка словаря концепта
+                concept_dict = {
+                    "term": question.get("concept_term", ""),
+                    "definition": question.get("concept_definition", "")
+                }
+
+                if not concept_dict["term"] and not concept_dict["definition"]:
+                    concept_dict = None
+
+                logger.info(">>> CALLING ExplainAgent.explain_error()")
+                self._log_data_transfer("Orchestrator", "ExplainAgent", {
+                    "question": question.get("question"),
+                    "user_answer": user_answer,
+                    "correct_answer": correct_answer,
+                    "concept": concept_dict
+                }, "explanation_request")
 
                 explanation_data = self.explainer.explain_error(
-                    question=question_text,
+                    question=question.get("question"),
                     user_answer=user_answer,
                     correct_answer=correct_answer,
-                    concept=concept_definition
+                    concept=concept_dict
                 )
 
-                result["explanation"] = explanation_data.get("explanation_text", "")
-                result["memory_palace"] = explanation_data.get("memory_palace_image", "")
+                self._log_data_transfer("ExplainAgent", "Orchestrator", explanation_data, "explanation_response")
 
-            logger.info(f"Answer processed: {'correct' if is_correct else 'incorrect'}")
+                if explanation_data.get("status") == "error":
+                    logger.warning(f"ExplainAgent error: {explanation_data.get('message')}")
+                    result["explanation"] = "Не удалось сгенерировать объяснение."
+                    result["memory_palace"] = ""
+                else:
+                    result["explanation"] = explanation_data.get("explanation", "")
+                    result["memory_palace"] = explanation_data.get("mnemonic_image", "")
 
+            logger.info(f"Result: {result['status']}")
+            logger.info("=" * 60 + "\n")
             return result
 
         except Exception as e:
@@ -296,73 +334,91 @@ class OrchestratorAgent:
             }
 
     def get_session_stats(self) -> Dict[str, Any]:
-        """
-        Получение статистики текущей сессии.
+        """Получение статистики с логированием."""
+        logger.info("ORCHESTRATOR: get_session_stats() called")
 
-        Returns:
-            Dict с ключами:
-                - score: int - правильных ответов
-                - total: int - всего вопросов отвечено
-                - accuracy: float - процент правильных ответов
-                - concepts_extracted: int
-                - questions_generated: int
-                - llm_stats: Dict - статистика использования токенов
-        """
         accuracy = 0.0
         if self.total_questions_answered > 0:
             accuracy = round((self.user_score / self.total_questions_answered) * 100, 2)
 
-        return {
+        stats = {
             "score": self.user_score,
-            "total": self.total_questions_answered,
+            "total_questions": len(self.current_quiz),
+            "answered": self.total_questions_answered,
             "accuracy": accuracy,
-            "concepts_extracted": len(self.extracted_concepts),
-            "questions_generated": len(self.current_quiz),
-            "questions_in_history": len(self.quiz_history),
             "llm_stats": self.client.get_usage_stats()
         }
 
-    def _update_history(self, new_questions: List[Dict]) -> None:
-        """
-        Добавление новых вопросов в историю сессии.
-        Хеширует текст вопроса для предотвращения дубликатов.
+        logger.info(f"Stats: score={stats['score']}, accuracy={stats['accuracy']}%")
+        return stats
 
-        Args:
-            new_questions: Список новых вопросов для добавления в историю
-        """
-        for question in new_questions:
-            question_hash = compute_hash(question.get("question", ""))
-            self.quiz_history.add(question_hash)
+    def _update_quiz_settings(self, count: int, difficulty: str):
+        """Обновление настроек квиза."""
+        logger.info("Updating quiz generator settings:")
+        if count:
+            logger.info(f"  - questions_count: {self.quiz_generator.questions_count} → {count}")
+            self.quiz_generator.questions_count = count
+        if difficulty:
+            logger.info(f"  - difficulty: {self.quiz_generator.difficulty} → {difficulty}")
+            self.quiz_generator.difficulty = difficulty
 
-        logger.debug(f"History updated: {len(self.quiz_history)} unique questions")
+    def _update_history(self, new_questions: List[Dict]):
+        """Обновление истории вопросов."""
+        logger.info("Updating quiz history...")
+        old_size = len(self.quiz_history)
 
-    def _find_question_by_id(self, question_id: str) -> Optional[Dict]:
-        """
-        Поиск вопроса в текущем квизе по его ID.
+        for q in new_questions:
+            concept_term = q.get("concept_term", "")
+            if not concept_term:
+                concept_term = q.get("concept_definition", "")
 
-        Args:
-            question_id: Уникальный идентификатор вопроса
+            if concept_term:
+                q_hash = compute_hash(concept_term)
+                self.quiz_history.add(q_hash)
 
-        Returns:
-            Dict с данными вопроса или None
-        """
-        for question in self.current_quiz:
-            if question.get("question_id") == question_id:
-                return question
+        new_size = len(self.quiz_history)
+        logger.info(f"History updated: {old_size} → {new_size} unique concepts")
+
+    def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
+        """Поиск вопроса по ID."""
+        for q in self.current_quiz:
+            if q.get("question_id") == q_id:
+                return q
         return None
 
-    def _reset_session(self) -> None:
-        """
-        Полный сброс состояния сессии.
-        Вызывается при старте новой сессии.
-        """
+    def _reset_session(self):
+        """Сброс состояния сессии."""
+        logger.info("Resetting session state...")
         self.current_note_hash = ""
-        self.current_note_text = ""
-        self.extracted_concepts = []
         self.verified_concepts = []
         self.current_quiz = []
         self.quiz_history.clear()
         self.user_score = 0
         self.total_questions_answered = 0
+        logger.info("✓ Session reset complete")
 
-        logger.debug("Session state reset")
+    def _log_data_transfer(self, source: str, destination: str, data: Any, data_name: str):
+        """
+        Логирование передачи данных между компонентами.
+
+        Args:
+            source: Источник данных
+            destination: Получатель данных
+            data: Передаваемые данные
+            data_name: Название данных
+        """
+        logger.info(f"\n📤 DATA TRANSFER: {source} → {destination}")
+        logger.info(f"   Data type: {data_name}")
+
+        if isinstance(data, (list, tuple)):
+            logger.info(f"   Data size: {len(data)} items")
+            if len(data) > 0 and len(data) <= 5:
+                logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+        elif isinstance(data, dict):
+            logger.info(f"   Data keys: {list(data.keys())}")
+            logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+        elif isinstance(data, str):
+            logger.info(f"   Data length: {len(data)} chars")
+            logger.debug(f"   Data preview: '{data[:100]}...'")
+        else:
+            logger.info(f"   Data type: {type(data)}")

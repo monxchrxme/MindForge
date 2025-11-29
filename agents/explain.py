@@ -453,3 +453,5 @@ class ExplainAgent:
                     self.timeout = value
                 else:
                     logger.warning(f"Таймаут должен быть положительным числом: {value}")
+
+
