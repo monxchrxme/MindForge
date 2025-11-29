@@ -29,6 +29,9 @@ class ParserAgent:
                 return cached
 
         concepts = self._extract_concepts_from_llm(text)
+        print("Извлечённые концепты из LLM:")
+        for concept in concepts:
+            print(f" - {concept['term']}: {concept['definition']}")
         if self.cache_enabled:
             self.cache_manager.save(note_hash, concepts)
         return concepts
