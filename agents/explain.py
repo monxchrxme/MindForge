@@ -1,23 +1,22 @@
+# agents/explain.py
+
 """
 ExplainAgent — Агент объяснения ошибок и создания мнемонических образов.
 
-Входящая данные (от Orchestrator):
-- user_answer: str — неправильный ответ, который дал пользователь
-- correct_answer: str — правильный ответ
-- question: str — текст вопроса для контекста
-- concept: dict — словарь с информацией о концепте {"term": "...", "definition": "..."}
+Входящие данные (от Orchestrator):
+- question_text: str — текст вопроса
+- user_ans: str — неправильный ответ пользователя
+- correct_ans: str — правильный ответ
+- concept_def: str — определение концепта для контекста
 
 Выходящие данные:
 - Dict с полями:
-  - "status": "success" | "error"
-  - "explanation": str — текстовое объяснение (2-3 предложения)
-  - "mnemonic_image": str — описание визуального образа для запоминания
-  - "message": str — (если status=="error") описание ошибки
+  - "explanation_text": str — текстовое объяснение
+  - "memory_palace_image": str — описание визуального образа для запоминания
 """
 
-import json
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -27,431 +26,226 @@ class ExplainAgent:
     Агент тьютора. Объясняет ошибки пользователя и помогает запомнить правильный ответ
     через мнемонические образы (метод дворца памяти).
 
-    Не хранит состояние — это stateless компонент.
+    Использует LangChain-GigaChat как основной API для генерации объяснений.
+    Это stateless компонент — не хранит состояние между вызовами.
     """
 
-    def __init__(self, gigachat_client, config: Optional[Dict] = None):
+    def __init__(self, client):
         """
         Инициализация ExplainAgent.
 
         Args:
-            gigachat_client: Экземпляр GigaChatClient для обращения к LLM
-            config: Dict с настройками (опционально):
-                - "explanation_language": "russian" | "english" (по умолчанию "russian")
-                - "mnemonic_style": "vivid" | "absurd" | "creative" (стиль образов)
-                - "response_timeout": int (в секундах, по умолчанию 30)
+            client: Экземпляр GigaChatClient для обращения к LLM через LangChain.
+                   Ожидается, что client имеет методы:
+                   - generate(prompt: str) -> str
+                   - generate_json(prompt: str) -> dict
         """
-        self.gigachat_client = gigachat_client
-        self.config = config or {}
-        self.language = self.config.get("explanation_language", "russian")
-        self.mnemonic_style = self.config.get("mnemonic_style", "absurd")
-        self.timeout = self.config.get("response_timeout", 30)
+        self.client = client
+        logger.info("ExplainAgent initialized")
 
     def explain_error(
-            self,
-            user_answer: str,
-            correct_answer: str,
-            question: str,
-            concept: Optional[Dict] = None
-    ) -> Dict[str, Union[str, bool]]:
+        self,
+        question_text: str,
+        user_ans: str,
+        correct_ans: str,
+        concept_def: str
+    ) -> Dict[str, str]:
         """
         Основной публичный метод. Генерирует объяснение ошибки и мнемонический образ.
 
+        ВАЖНО: Сигнатура совместима с вызовом из OrchestratorAgent.submit_answer():
+            result = self.explainer.explain_error(
+                question_text=question_text,
+                user_ans=user_answer,
+                correct_ans=correct_answer,
+                concept_def=concept_definition
+            )
+
         Args:
-            user_answer: str — неправильный ответ пользователя (то, что он выбрал)
-            correct_answer: str — правильный ответ
-            question: str — текст вопроса для контекста
-            concept: Optional[Dict] — информация о концепте:
-                {
-                    "term": "название_концепта",
-                    "definition": "определение",
-                    "importance": "high" | "medium" | "low"  # опционально
-                }
+            question_text: str — текст вопроса для контекста
+            user_ans: str — неправильный ответ пользователя
+            correct_ans: str — правильный ответ
+            concept_def: str — определение концепта (от metadata вопроса)
 
         Returns:
-            Dict с форматом ответа:
-            {
-                "status": "success" | "error",
-                "explanation": "Текстовое объяснение...",  # только если status=="success"
-                "mnemonic_image": "Описание образа...",     # только если status=="success"
-                "message": "Описание ошибки"                # только если status=="error"
-            }
+            Dict с полями:
+                - "explanation_text": str — объяснение ошибки (2-3 предложения)
+                - "memory_palace_image": str — описание визуального образа (3-5 предложений)
 
-        Примечания:
-            - Метод НЕ хранит состояние — каждый вызов независим
-            - Обращается к LLM для генерации объяснения
-            - Возвращает структурированный JSON
+        Raises:
+            Exception: При ошибках API или парсинга
         """
         try:
             # Валидация входных данных
-            validation_result = self._validate_input(
-                user_answer, correct_answer, question
+            validation_error = self._validate_input(
+                question_text, user_ans, correct_ans, concept_def
             )
-            if not validation_result["valid"]:
-                return {
-                    "status": "error",
-                    "message": validation_result["error"]
-                }
+            if validation_error:
+                logger.warning(f"Validation error: {validation_error}")
+                raise ValueError(validation_error)
 
             # Построение промпта
             prompt = self._build_prompt(
-                user_answer=user_answer,
-                correct_answer=correct_answer,
-                question=question,
-                concept=concept
+                question_text=question_text,
+                user_ans=user_ans,
+                correct_ans=correct_ans,
+                concept_def=concept_def
             )
 
-            # Запрос к GigaChat
-            llm_response = self.gigachat_client.generate(
-                prompt=prompt,
-                #timeout=self.timeout
-            )
+            logger.debug("Sending request to GigaChat...")
 
-            # Парсинг ответа LLM
-            parsed_response = self._parse_llm_response(llm_response)
+            # Запрос к GigaChat через LangChain (получаем JSON напрямую)
+            response_data = self.client.generate_json(prompt)
 
-            if not parsed_response["success"]:
-                return {
-                    "status": "error",
-                    "message": parsed_response.get("error", "Ошибка парсинга ответа LLM")
-                }
+            # Валидация структуры ответа
+            if not isinstance(response_data, dict):
+                raise ValueError(f"Expected dict response, got {type(response_data)}")
 
-            return {
-                "status": "success",
-                "explanation": parsed_response["explanation"],
-                "mnemonic_image": parsed_response["mnemonic_image"]
+            # Извлечение полей (новая сигнатура для совместимости с Orchestrator)
+            explanation_text = response_data.get("explanation", "")
+            memory_palace_image = response_data.get("mnemonic_image", "")
+
+            if not explanation_text or not memory_palace_image:
+                logger.error(f"Missing fields in response: {response_data.keys()}")
+                raise ValueError("Response missing 'explanation' or 'mnemonic_image'")
+
+            result = {
+                "explanation_text": explanation_text.strip(),
+                "memory_palace_image": memory_palace_image.strip()
             }
+
+            logger.info("Explanation generated successfully")
+            return result
 
         except Exception as e:
-            logger.error(f"ExplainAgent.explain() ошибка: {str(e)}", exc_info=True)
-            return {
-                "status": "error",
-                "message": f"Внутренняя ошибка агента: {str(e)}"
-            }
+            logger.error(f"Error in explain_error(): {str(e)}", exc_info=True)
+            raise
 
     def _validate_input(
-            self,
-            user_answer: str,
-            correct_answer: str,
-            question: str
-    ) -> Dict[str, Union[bool, str]]:
+        self,
+        question_text: str,
+        user_ans: str,
+        correct_ans: str,
+        concept_def: str
+    ) -> Optional[str]:
         """
         Проверка входных параметров на корректность.
 
         Args:
-            user_answer: str — ответ пользователя
-            correct_answer: str — правильный ответ
-            question: str — текст вопроса
+            question_text: str
+            user_ans: str
+            correct_ans: str
+            concept_def: str
 
         Returns:
-            Dict с полями:
-            - "valid": bool — валидны ли данные
-            - "error": str — (если invalid) описание проблемы
+            str — сообщение об ошибке, или None если валидно
         """
-        # Проверка типов
-        if not isinstance(user_answer, str) or not user_answer.strip():
-            return {
-                "valid": False,
-                "error": "user_answer должен быть непустой строкой"
-            }
+        # Проверка типов и пустоты
+        if not isinstance(question_text, str) or not question_text.strip():
+            return "question_text должен быть непустой строкой"
 
-        if not isinstance(correct_answer, str) or not correct_answer.strip():
-            return {
-                "valid": False,
-                "error": "correct_answer должен быть непустой строкой"
-            }
+        if not isinstance(user_ans, str) or not user_ans.strip():
+            return "user_ans должен быть непустой строкой"
 
-        if not isinstance(question, str) or not question.strip():
-            return {
-                "valid": False,
-                "error": "question должен быть непустой строкой"
-            }
+        if not isinstance(correct_ans, str) or not correct_ans.strip():
+            return "correct_ans должен быть непустой строкой"
 
-        # Проверка, что ответы не совпадают (иначе это не ошибка)
-        if user_answer.strip().lower() == correct_answer.strip().lower():
-            return {
-                "valid": False,
-                "error": "Ответы совпадают — это не ошибка"
-            }
+        if not isinstance(concept_def, str) or not concept_def.strip():
+            return "concept_def должен быть непустой строкой"
 
-        return {"valid": True}
+        # Проверка, что ответы не совпадают
+        if user_ans.strip().lower() == correct_ans.strip().lower():
+            return "Ответы совпадают — это не ошибка"
+
+        return None
 
     def _build_prompt(
-            self,
-            user_answer: str,
-            correct_answer: str,
-            question: str,
-            concept: Optional[Dict] = None
+        self,
+        question_text: str,
+        user_ans: str,
+        correct_ans: str,
+        concept_def: str
     ) -> str:
         """
         Построение структурированного промпта для LLM.
 
         Args:
-            user_answer: str — неправильный ответ
-            correct_answer: str — правильный ответ
-            question: str — вопрос
-            concept: Optional[Dict] — контекст концепта
+            question_text: str
+            user_ans: str
+            correct_ans: str
+            concept_def: str
 
         Returns:
-            str — готовый промпт для LLM
+            str — готовый промпт для отправки в GigaChat через LangChain
         """
-        concept_info = ""
-        if concept and isinstance(concept, dict):
-            term = concept.get("term", "")
-            definition = concept.get("definition", "")
-            if term:
-                concept_info = f"\nКонцепт: {term}"
-            if definition:
-                concept_info += f"\nОпределение: {definition}"
-
-        mnemonic_instruction = {
-            "vivid": "ярким, запоминающимся",
-            "absurd": "абсурдным, сумасшедшим, веселым",
-            "creative": "творческим и оригинальным"
-        }.get(self.mnemonic_style, "ярким и запоминающимся")
-
-        language_note = "на русском языке" if self.language == "russian" else "на английском языке"
-
         prompt = f"""Ты — опытный тьютор, который помогает студентам учиться на их ошибках.
 
 ЗАДАЧА:
-1. Объясни кратко (2-3 предложения), почему ответ студента неправильный и какой ответ правильный.
-2. Придумай {mnemonic_instruction} образ или ассоциацию, которая поможет студенту запомнить правильный ответ на долго.
+1. Объясни кратко (2-3 предложения), почему ответ студента неправильный.
+2. Придумай абсурдный, веселый и запоминающийся визуальный образ или ассоциацию для правильного ответа.
 
 КОНТЕКСТ:
-Вопрос: {question}
-Ответ студента: {user_answer}
-Правильный ответ: {correct_answer}{concept_info}
+- Вопрос: {question_text}
+- Ответ студента (неправильно): {user_ans}
+- Правильный ответ: {correct_ans}
+- Определение концепта: {concept_def}
 
 ТРЕБОВАНИЯ К ОТВЕТУ:
-- Ответ ТОЛЬКО на {language_note}
-- Объяснение: 2-3 предложения, доброжелательное, без критики
-- Мнемонический образ: Опиши {mnemonic_instruction} визуальный образ, сюжет или ассоциацию (3-5 предложений)
-- ОБЯЗАТЕЛЬНО верни ответ в следующем JSON-формате (без добавления текста до/после):
+1. Объяснение: 2-3 предложения, дружелюбное, без критики.
+2. Мнемонический образ: Опиши абсурдный, смешной или нелогичный визуальный образ (3-5 предложений), который помогает запомнить правильный ответ.
+3. Язык: русский.
+4. ОБЯЗАТЕЛЬНО верни ответ ТОЛЬКО в следующем JSON-формате, без дополнительного текста:
 
 {{
-  "explanation": "Объяснение ошибки здесь...",
-  "mnemonic_image": "Описание визуального образа здесь..."
-}}
-"""
+  "explanation": "Объяснение здесь...",
+  "mnemonic_image": "Описание образа здесь..."
+}}"""
+
         return prompt
 
-    def _parse_llm_response(self, llm_response: str) -> Dict[str, Union[bool, str]]:
-        """
-        Парсинг ответа от LLM.
-
-        Ожидаемый формат: JSON с полями explanation и mnemonic_image.
-        Если LLM вернет JSON обернутый в Markdown-блоки, метод должен их обработать.
-
-        Args:
-            llm_response: str — сырой ответ от LLM
-
-        Returns:
-            Dict с полями:
-            - "success": bool — успешен ли парсинг
-            - "explanation": str — (если success) текст объяснения
-            - "mnemonic_image": str — (если success) текст образа
-            - "error": str — (если not success) описание ошибки
-        """
-        try:
-            # Очистка от Markdown-обертки (если есть)
-            cleaned_response = self._extract_json_from_markdown(llm_response)
-
-            # Парсинг JSON
-            data = json.loads(cleaned_response)
-
-            # Валидация полей
-            if "explanation" not in data or "mnemonic_image" not in data:
-                missing = []
-                if "explanation" not in data:
-                    missing.append("explanation")
-                if "mnemonic_image" not in data:
-                    missing.append("mnemonic_image")
-
-                return {
-                    "success": False,
-                    "error": f"Недостающие поля в ответе LLM: {', '.join(missing)}"
-                }
-
-            # Проверка, что значения — это строки
-            explanation = data["explanation"]
-            mnemonic_image = data["mnemonic_image"]
-
-            if not isinstance(explanation, str) or not explanation.strip():
-                return {
-                    "success": False,
-                    "error": "Поле 'explanation' не содержит непустую строку"
-                }
-
-            if not isinstance(mnemonic_image, str) or not mnemonic_image.strip():
-                return {
-                    "success": False,
-                    "error": "Поле 'mnemonic_image' не содержит непустую строку"
-                }
-
-            return {
-                "success": True,
-                "explanation": explanation.strip(),
-                "mnemonic_image": mnemonic_image.strip()
-            }
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON парсинг ошибка: {str(e)}. Ответ: {llm_response}")
-            return {
-                "success": False,
-                "error": f"Невалидный JSON в ответе LLM: {str(e)}"
-            }
-        except Exception as e:
-            logger.error(f"Парсинг ответа ошибка: {str(e)}")
-            return {
-                "success": False,
-                "error": f"Ошибка при парсинге ответа: {str(e)}"
-            }
-
-    def _extract_json_from_markdown(self, text: str) -> str:
-        """
-        Извлечение JSON из Markdown-блоков.
-
-        LLM может вернуть JSON обернутый в:
-        ```json
-        { ... }
-        ```
-        или
-        ``` json
-        { ... }
-        ```
-
-        Args:
-            text: str — текст с возможной Markdown-обёрткой
-
-        Returns:
-            str — чистый JSON
-        """
-        text = text.strip()
-
-        # Проверка на Markdown-блоки
-        if text.startswith("```"):
-            # Найти первый перевод строки
-            lines = text.split("\n")
-
-            # Найти начало JSON (после открывающей скобки или первой непустой строки после ```)
-            start_idx = 0
-            for i, line in enumerate(lines):
-                if line.startswith("```"):
-                    start_idx = i + 1
-                    break
-
-            # Найти конец JSON (перед закрывающей ```)
-            end_idx = len(lines)
-            for i in range(start_idx, len(lines)):
-                if lines[i].startswith("```"):
-                    end_idx = i
-                    break
-
-            # Собрать JSON
-            json_lines = lines[start_idx:end_idx]
-            text = "\n".join(json_lines).strip()
-
-        return text
-
     def explain_batch(
-            self,
-            errors: List[Dict[str, str]]
-    ) -> List[Dict[str, Union[str, bool]]]:
+        self,
+        errors: list
+    ) -> list:
         """
         Пакетное объяснение нескольких ошибок.
 
-        Используется, когда пользователь прошел квиз и получил несколько ошибок —
-        система может объяснить их все подряд.
+        Используется, когда пользователь прошел квиз и получил несколько ошибок.
 
         Args:
             errors: List[Dict] — список ошибок, каждая с полями:
                 {
-                    "user_answer": "...",
-                    "correct_answer": "...",
-                    "question": "...",
-                    "concept": {...}  # опционально
+                  "question_text": "...",
+                  "user_ans": "...",
+                  "correct_ans": "...",
+                  "concept_def": "..."
                 }
 
         Returns:
             List[Dict] — список результатов (в том же порядке)
         """
         if not isinstance(errors, list):
-            logger.warning("explain_batch: errors должен быть List, получен %s", type(errors))
-            return [
-                {
-                    "status": "error",
-                    "message": "errors должен быть List"
-                }
-            ]
+            logger.error(f"explain_batch: errors must be list, got {type(errors)}")
+            raise TypeError("errors должен быть List")
 
         results = []
         for i, error_data in enumerate(errors):
             try:
-                result = self.explain(
-                    user_answer=error_data.get("user_answer", ""),
-                    correct_answer=error_data.get("correct_answer", ""),
-                    question=error_data.get("question", ""),
-                    concept=error_data.get("concept")
+                result = self.explain_error(
+                    question_text=error_data.get("question_text", ""),
+                    user_ans=error_data.get("user_ans", ""),
+                    correct_ans=error_data.get("correct_ans", ""),
+                    concept_def=error_data.get("concept_def", "")
                 )
                 results.append(result)
             except Exception as e:
                 logger.error(
-                    f"explain_batch: ошибка при обработке ошибки #{i}: {str(e)}",
+                    f"explain_batch: error processing error #{i}: {str(e)}",
                     exc_info=True
                 )
                 results.append({
-                    "status": "error",
-                    "message": f"Ошибка при обработке: {str(e)}"
+                    "explanation_text": f"Ошибка при обработке: {str(e)}",
+                    "memory_palace_image": ""
                 })
 
         return results
-
-    def get_config(self) -> Dict:
-        """
-        Возвращает текущую конфигурацию агента.
-
-        Returns:
-            Dict с текущими настройками
-        """
-        return {
-            "language": self.language,
-            "mnemonic_style": self.mnemonic_style,
-            "timeout": self.timeout
-        }
-
-    def set_config(self, **kwargs) -> None:
-        """
-        Обновление конфигурации агента.
-
-        Args:
-            **kwargs: Настройки для обновления:
-                - language: "russian" | "english"
-                - mnemonic_style: "vivid" | "absurd" | "creative"
-                - response_timeout: int
-        """
-        valid_keys = {"language", "mnemonic_style", "response_timeout"}
-        for key, value in kwargs.items():
-            if key not in valid_keys:
-                logger.warning(f"Неизвестный параметр конфигурации: {key}")
-                continue
-
-            if key == "language":
-                if value in ["russian", "english"]:
-                    self.language = value
-                else:
-                    logger.warning(f"Неподдерживаемый язык: {value}")
-
-            elif key == "mnemonic_style":
-                if value in ["vivid", "absurd", "creative"]:
-                    self.mnemonic_style = value
-                else:
-                    logger.warning(f"Неподдерживаемый стиль мнемоники: {value}")
-
-            elif key == "response_timeout":
-                if isinstance(value, int) and value > 0:
-                    self.timeout = value
-                else:
-                    logger.warning(f"Таймаут должен быть положительным числом: {value}")
-
-
