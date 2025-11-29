@@ -32,6 +32,8 @@ class ParserAgent:
         print("Извлечённые концепты из LLM:")
         for concept in concepts:
             print(f" - {concept['term']}: {concept['definition']}")
+        logger.info("Извлечённые концепты (LLM): %s",
+                    "; ".join(f"{c['term']}: {c['definition']}" for c in concepts))
         if self.cache_enabled:
             self.cache_manager.save(note_hash, concepts)
         return concepts
