@@ -124,7 +124,7 @@ def run_cli_quiz_session(orchestrator: OrchestratorAgent, quiz_data: list):
                 if question['type'] == 'multiple_choice':
                     idx = int(user_input) - 1
                     if 0 <= idx < len(options):
-                        formatted_answer = str(idx)
+                        formatted_answer = options[idx]
                 elif question['type'] == 'true_false':
                     if user_input in ['1', 'true']:
                         formatted_answer = 'true'

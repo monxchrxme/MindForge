@@ -58,11 +58,12 @@ class QuizAgent:
         ]
         """
         logger.info("[START] QuizAgent.generate_questions called")
-        logger.info(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
-        logger.info(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
+        logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
+        logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
 
         prompt = self._questions_prompt(concepts, avoid_history)
-        logger.info(f"[STEP] Prompt constructed:\n{prompt}")
+
+        # logger.debug(f"[STEP] Prompt constructed:\n{prompt}")
 
         # raw_questions = self.client.generate_json(prompt)
         # logger.info(f"[STEP] raw_questions from LLM:\n{json.dumps(raw_questions, ensure_ascii=False, indent=2)}")
@@ -70,7 +71,7 @@ class QuizAgent:
         # Шаг 1: Получение JSON от LLM (с обработкой ошибок)
         try:
             raw_questions = self.client.generate_json(prompt)
-            logger.info(
+            logger.debug(
                 f"[STEP] Received {len(raw_questions) if isinstance(raw_questions, list) else 'N/A'} raw questions from LLM")
         except ValueError as e:
             logger.error(f"[ERROR] JSON parsing failed after retries: {e}")
@@ -84,13 +85,13 @@ class QuizAgent:
 
         # Шаг 3: Проверка уникальности
         valid_questions = self._validate_unique(valid_and_filtered_questions, avoid_history)
-        logger.info(f"[STEP] After validation, valid_questions:\n{json.dumps(valid_questions, ensure_ascii=False, indent=2)}")
+        logger.debug(f"[STEP] After validation, valid_questions:\n{json.dumps(valid_questions, ensure_ascii=False, indent=2)}")
 
         # Шаг 4: Постобработка (добавление UUID, concept_definition)
         processed_questions = self._post_process_questions(valid_questions, concepts)
         logger.info("[FINISH] QuizAgent.generate_questions finished")
         logger.info(f"[FINISH] Returning {len(processed_questions)} questions")
-        logger.info(f"[OUTPUT] processed_questions:\n{json.dumps(processed_questions, ensure_ascii=False, indent=2)}")
+        logger.debug(f"[OUTPUT] processed_questions:\n{json.dumps(processed_questions, ensure_ascii=False, indent=2)}")
 
         # ДОБАВИТЬ логирование для диагностики
         if len(processed_questions) < self.questions_count:
@@ -230,7 +231,7 @@ class QuizAgent:
             ВАЖНО: Возвращай ТОЛЬКО JSON-массив, без комментариев!"""
         )
 
-        logger.info(f"[STEP] Prompt ready:\n{prompt}")
+        logger.info(f"[STEP] Prompt ready")
         return prompt
 
     def _validate_and_filter_questions(self, raw_questions: Any) -> List[Dict[str, Any]]:
@@ -254,7 +255,7 @@ class QuizAgent:
             # Используем новый метод валидации
             if self._validate_question_structure(q):
                 valid_questions.append(q)
-                logger.info(f"[VALID] Question #{idx + 1} passed validation")
+                logger.debug(f"[VALID] Question #{idx + 1} passed validation")
             else:
                 logger.warning(f"[SKIP] Question #{idx + 1} failed validation")
 
@@ -357,7 +358,7 @@ class QuizAgent:
             unique.append(q)
             seen_exact.add(text_lower)
             seen_texts.append(text)
-            logger.info(f"[VALID] Question #{idx + 1} added as unique")
+            logger.debug(f"[VALID] Question #{idx + 1} added as unique")
 
         logger.info(f"[STEP] {len(unique)}/{len(questions)} questions passed uniqueness check")
         return unique
@@ -428,7 +429,7 @@ class QuizAgent:
             q["question_id"] = str(uuid.uuid4())
             related = q.get("related_concept") or ""
             q["concept_definition"] = concept_lookup.get(related, "")
-            logger.info(
+            logger.debug(
                 f"[UPDATE] Processed question #{idx + 1}:\n"
                 f"[ORIGINAL] {json.dumps(original, ensure_ascii=False, indent=2)}\n"
                 f"[UPDATED]  {json.dumps(q, ensure_ascii=False, indent=2)}"
