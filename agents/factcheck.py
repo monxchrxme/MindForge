@@ -1,8 +1,6 @@
-# agents/factcheck.py
 
-import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict
 from services.gigachat_client import GigaChatClient
 
 logger = logging.getLogger(__name__)
@@ -27,15 +25,15 @@ class FactCheckAgent:
             # Отправляем запрос к API с автоматическим парсингом JSON
             # ✅ ИСПРАВЛЕНО: Используем generate_json() вместо несуществующего send_request()
             response_data = self.client.generate_json(prompt)
-            
+
             # Извлекаем проверенные концепты
             verified_concepts = response_data.get("concepts", [])
-            
+
             # Базовая валидация структуры
             for concept in verified_concepts:
                 if not isinstance(concept, dict) or "term" not in concept or "definition" not in concept:
                     raise ValueError("Неверная структура концепта")
-            
+
             logger.info(f"Successfully verified {len(verified_concepts)} concepts")
             return verified_concepts
 
