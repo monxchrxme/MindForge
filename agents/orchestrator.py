@@ -327,100 +327,6 @@ class OrchestratorAgent:
                 "message": f"Ошибка при проверке ответа: {str(e)}"
             }
 
-            # def submit_answer(self, question_id: str, user_answer: str) -> Dict[str, Any]:
-    #     """
-    #     Проверка ответа пользователя с детальным логированием.
-    #
-    #     Args:
-    #         question_id: ID вопроса
-    #         user_answer: Ответ пользователя
-    #
-    #     Returns:
-    #         Dict с результатом проверки
-    #     """
-    #     logger.info("\n" + "=" * 60)
-    #     logger.info("ORCHESTRATOR: submit_answer() called")
-    #     logger.info(f"Input: question_id={question_id}, user_answer={user_answer}")
-    #
-    #     try:
-    #         # Поиск вопроса
-    #         question = self._find_question_by_id(question_id)
-    #         if not question:
-    #             logger.error(f"Question {question_id} not found in current quiz")
-    #             return {
-    #                 "status": "error",
-    #                 "message": f"Вопрос с ID {question_id} не найден"
-    #             }
-    #
-    #         logger.debug(f"Found question: {question.get('question', '')[:50]}...")
-    #
-    #         correct_answer = question.get("correct_answer")
-    #         is_correct = str(user_answer).lower().strip() == str(correct_answer).lower().strip()
-    #
-    #         logger.info(f"Comparison: user='{user_answer}' vs correct='{correct_answer}' => {is_correct}")
-    #
-    #         # Обновление статистики
-    #         self.total_questions_answered += 1
-    #         if is_correct:
-    #             self.user_score += 1
-    #
-    #         logger.info(f"Score updated: {self.user_score}/{self.total_questions_answered}")
-    #
-    #         result = {
-    #             "status": "correct" if is_correct else "incorrect",
-    #             "is_correct": is_correct,
-    #             "correct_answer": correct_answer,
-    #             "score": self.user_score,
-    #             "total": len(self.current_quiz)
-    #         }
-    #
-    #         # Генерация объяснения при ошибке
-    #         if not is_correct:
-    #             logger.info("\n>>> Wrong answer, calling ExplainAgent")
-    #
-    #             # Сборка словаря концепта
-    #             concept_dict = {
-    #                 "term": question.get("concept_term", ""),
-    #                 "definition": question.get("concept_definition", "")
-    #             }
-    #
-    #             if not concept_dict["term"] and not concept_dict["definition"]:
-    #                 concept_dict = None
-    #
-    #             logger.info(">>> CALLING ExplainAgent.explain_error()")
-    #             self._log_data_transfer("Orchestrator", "ExplainAgent", {
-    #                 "question": question.get("question"),
-    #                 "user_answer": user_answer,
-    #                 "correct_answer": correct_answer,
-    #                 "concept": concept_dict
-    #             }, "explanation_request")
-    #
-    #             explanation_data = self.explainer.explain_error(
-    #                 question_text=question.get("question"),
-    #                 user_ans=user_answer,
-    #                 correct_ans=correct_answer
-    #             )
-    #
-    #             self._log_data_transfer("ExplainAgent", "Orchestrator", explanation_data, "explanation_response")
-    #
-    #             if explanation_data.get("status") == "error":
-    #                 logger.warning(f"ExplainAgent error: {explanation_data.get('message')}")
-    #                 result["explanation"] = "Не удалось сгенерировать объяснение."
-    #                 result["memory_palace"] = ""
-    #             else:
-    #                 result["explanation"] = explanation_data.get("explanation", "")
-    #                 result["memory_palace"] = explanation_data.get("mnemonic_image", "")
-    #
-    #         logger.info(f"Result: {result['status']}")
-    #         logger.info("=" * 60 + "\n")
-    #         return result
-    #
-    #     except Exception as e:
-    #         logger.error(f"Error in submit_answer: {str(e)}", exc_info=True)
-    #         return {
-    #             "status": "error",
-    #             "message": f"Ошибка при проверке ответа: {str(e)}"
-    #        }
 
     def get_session_stats(self) -> Dict[str, Any]:
         """Получение статистики с логированием."""
@@ -452,21 +358,18 @@ class OrchestratorAgent:
             self.quiz_generator.difficulty = difficulty
 
     def _update_history(self, new_questions: List[Dict]):
-        """Обновление истории вопросов."""
+        """
+        Обновление истории вопросов.
+        Сохраняем полные тексты вопросов для семантической проверки в QuizAgent.
+        """
         logger.info("Updating quiz history...")
         old_size = len(self.quiz_history)
-
         for q in new_questions:
-            concept_term = q.get("concept_term", "")
-            if not concept_term:
-                concept_term = q.get("concept_definition", "")
-
-            if concept_term:
-                q_hash = compute_hash(concept_term)
-                self.quiz_history.add(q_hash)
-
+            question_text = q.get("question", "").strip().lower()
+            if question_text:
+                self.quiz_history.add(question_text)  # Сохраняем сам текст
         new_size = len(self.quiz_history)
-        logger.info(f"History updated: {old_size} → {new_size} unique concepts")
+        logger.info(f"History updated: {old_size} → {new_size} unique questions")
 
     def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
         """Поиск вопроса по ID."""
