@@ -9,94 +9,18 @@
 
   "quiz_settings": {
     "questions_count": 10,
-    "difficulty": "medium",
-    "question_types": [
-      "multiple_choice",
-      "true_false",
-      "open_ended"
-    ],
-    "min_options": 3,
-    "max_options": 5
-  },
-
-  "parser_settings": {
-    "min_concepts": 3,
-    "max_concepts": 10,
-    "min_text_length": 50,
-    "extract_key_terms": true,
-    "extract_definitions": true,
-    "extract_examples": true
+    "difficulty": "medium"
   },
 
   "cache_settings": {
     "enabled": true,
-    "cache_dir": "data/cache",
-    "max_age_days": 30,
-    "auto_cleanup": false
+    "cache_dir": "data/cache"
   },
 
-  "fact_check_settings": {
-    "enabled": true,
-    "confidence_threshold": 0.7,
-    "verify_definitions": true,
-    "verify_facts": true
-  },
+  "enable_fact_check": true,
 
-  "explain_settings": {
-    "generate_memory_palace": true,
-    "explanation_max_length": 500,
-    "memory_image_style": "vivid",
-    "use_metaphors": true
-  },
-
-  "logging": {
-    "level": "INFO",
-    "file": "data/logs/app.log",
-    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "max_file_size_mb": 10,
-    "backup_count": 5
-  },
-
-  "prompts": {
-    "parser_system_prompt": "Ты эксперт по анализу образовательного контента. Извлекай ключевые концепты из учебных заметок студентов.",
-    "quiz_system_prompt": "Ты эксперт по созданию образовательных квизов. Генерируй вопросы для активного обучения.",
-    "explainer_system_prompt": "Ты педагог, который помогает студентам учиться на ошибках. Объясняй простым языком и используй яркие образы.",
-    "fact_check_system_prompt": "Ты эксперт по проверке фактов. Валидируй образовательную информацию на точность."
-  },
-
-  "features": {
-    "enable_fact_check": true,
-    "enable_memory_palace": true,
-    "enable_quiz_history": true,
-    "enable_statistics": true
-  },
-
-  "limits": {
-    "max_note_length": 10000,
-    "max_question_length": 500,
-    "max_answer_length": 200,
-    "max_explanation_length": 1000,
-    "max_cache_files": 1000
-  },
-
-  "validation": {
-    "strict_json_parsing": false,
-    "validate_schema": true,
-    "allow_empty_concepts": false,
-    "require_all_fields": true
-  },
-
-  "performance": {
-    "batch_processing": false,
-    "parallel_requests": 1,
-    "request_delay_ms": 0,
-    "use_streaming": false
-  },
-
-  "ui_settings": {
-    "language": "ru",
-    "show_progress": true,
-    "show_statistics": true,
-    "show_hints": true
+  "parser_settings": {
+    "min_concepts": 3,
+    "max_concepts": 10
   }
 }

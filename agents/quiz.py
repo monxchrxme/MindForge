@@ -130,7 +130,7 @@ class QuizAgent:
         avoid_part = ""
         if avoid_history:
             # Ограничиваем до 15 последних вопросов
-            recent_history = list(avoid_history)[15:]
+            recent_history = list(avoid_history)[-15:]
             avoid_part = (
                     "НЕ создавай вопросы, похожие на эти:\n"
                     + "\n".join([f"- {q}" for q in recent_history])

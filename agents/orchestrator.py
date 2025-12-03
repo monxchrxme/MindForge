@@ -76,6 +76,16 @@ class OrchestratorAgent:
         self.current_quiz: List[Dict] = []
         self.quiz_history: Set[str] = set()
 
+        # загрузка глобальной истории вопросов
+        self.global_history_key = "global_quiz_history"
+        if self.cache_manager.exists(self.global_history_key):
+            loaded_history = self.cache_manager.load(self.global_history_key)
+            # Превращаем список обратно в множество
+            self.quiz_history: Set[str] = set(loaded_history) if loaded_history else set()
+            logger.info(f"Loaded global history: {len(self.quiz_history)} questions")
+        else:
+            self.quiz_history: Set[str] = set()
+
         # Статистика
         self.user_score: int = 0
         self.total_questions_answered: int = 0
@@ -88,7 +98,8 @@ class OrchestratorAgent:
             note_text: str,
             questions_count: int = None,
             difficulty: str = None,
-            force_reparse: bool = False
+            force_reparse: bool = False,
+            ignore_history: bool = False
     ) -> Dict[str, Any]:
         """
         Полный пайплайн обработки заметки с детальным логированием.
@@ -110,6 +121,7 @@ class OrchestratorAgent:
         logger.info(f"  - questions_count: {questions_count}")
         logger.info(f"  - difficulty: {difficulty}")
         logger.info(f"  - force_reparse: {force_reparse}")
+        logger.info(f" - ignore_history: {ignore_history}")
 
         try:
             self._reset_session()
@@ -189,6 +201,10 @@ class OrchestratorAgent:
             logger.info(f"Concepts available: {len(self.verified_concepts)}")
             logger.info(f"Quiz history size: {len(self.quiz_history)}")
 
+            history_to_use = set() if ignore_history else self.quiz_history
+            if ignore_history:
+                logger.info("⚠️ IGNORING HISTORY mode enabled")
+
             logger.info("\n>>> CALLING QuizAgent.generate_questions()")
             self._log_data_transfer("Orchestrator", "QuizAgent", {
                 "concepts": self.verified_concepts,
@@ -197,7 +213,7 @@ class OrchestratorAgent:
 
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
-                avoid_history=self.quiz_history
+                avoid_history=history_to_use  # <--- 2. Передаем правильную историю
             )
 
             self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
@@ -327,100 +343,6 @@ class OrchestratorAgent:
                 "message": f"Ошибка при проверке ответа: {str(e)}"
             }
 
-            # def submit_answer(self, question_id: str, user_answer: str) -> Dict[str, Any]:
-    #     """
-    #     Проверка ответа пользователя с детальным логированием.
-    #
-    #     Args:
-    #         question_id: ID вопроса
-    #         user_answer: Ответ пользователя
-    #
-    #     Returns:
-    #         Dict с результатом проверки
-    #     """
-    #     logger.info("\n" + "=" * 60)
-    #     logger.info("ORCHESTRATOR: submit_answer() called")
-    #     logger.info(f"Input: question_id={question_id}, user_answer={user_answer}")
-    #
-    #     try:
-    #         # Поиск вопроса
-    #         question = self._find_question_by_id(question_id)
-    #         if not question:
-    #             logger.error(f"Question {question_id} not found in current quiz")
-    #             return {
-    #                 "status": "error",
-    #                 "message": f"Вопрос с ID {question_id} не найден"
-    #             }
-    #
-    #         logger.debug(f"Found question: {question.get('question', '')[:50]}...")
-    #
-    #         correct_answer = question.get("correct_answer")
-    #         is_correct = str(user_answer).lower().strip() == str(correct_answer).lower().strip()
-    #
-    #         logger.info(f"Comparison: user='{user_answer}' vs correct='{correct_answer}' => {is_correct}")
-    #
-    #         # Обновление статистики
-    #         self.total_questions_answered += 1
-    #         if is_correct:
-    #             self.user_score += 1
-    #
-    #         logger.info(f"Score updated: {self.user_score}/{self.total_questions_answered}")
-    #
-    #         result = {
-    #             "status": "correct" if is_correct else "incorrect",
-    #             "is_correct": is_correct,
-    #             "correct_answer": correct_answer,
-    #             "score": self.user_score,
-    #             "total": len(self.current_quiz)
-    #         }
-    #
-    #         # Генерация объяснения при ошибке
-    #         if not is_correct:
-    #             logger.info("\n>>> Wrong answer, calling ExplainAgent")
-    #
-    #             # Сборка словаря концепта
-    #             concept_dict = {
-    #                 "term": question.get("concept_term", ""),
-    #                 "definition": question.get("concept_definition", "")
-    #             }
-    #
-    #             if not concept_dict["term"] and not concept_dict["definition"]:
-    #                 concept_dict = None
-    #
-    #             logger.info(">>> CALLING ExplainAgent.explain_error()")
-    #             self._log_data_transfer("Orchestrator", "ExplainAgent", {
-    #                 "question": question.get("question"),
-    #                 "user_answer": user_answer,
-    #                 "correct_answer": correct_answer,
-    #                 "concept": concept_dict
-    #             }, "explanation_request")
-    #
-    #             explanation_data = self.explainer.explain_error(
-    #                 question_text=question.get("question"),
-    #                 user_ans=user_answer,
-    #                 correct_ans=correct_answer
-    #             )
-    #
-    #             self._log_data_transfer("ExplainAgent", "Orchestrator", explanation_data, "explanation_response")
-    #
-    #             if explanation_data.get("status") == "error":
-    #                 logger.warning(f"ExplainAgent error: {explanation_data.get('message')}")
-    #                 result["explanation"] = "Не удалось сгенерировать объяснение."
-    #                 result["memory_palace"] = ""
-    #             else:
-    #                 result["explanation"] = explanation_data.get("explanation", "")
-    #                 result["memory_palace"] = explanation_data.get("mnemonic_image", "")
-    #
-    #         logger.info(f"Result: {result['status']}")
-    #         logger.info("=" * 60 + "\n")
-    #         return result
-    #
-    #     except Exception as e:
-    #         logger.error(f"Error in submit_answer: {str(e)}", exc_info=True)
-    #         return {
-    #             "status": "error",
-    #             "message": f"Ошибка при проверке ответа: {str(e)}"
-    #        }
 
     def get_session_stats(self) -> Dict[str, Any]:
         """Получение статистики с логированием."""
@@ -452,21 +374,28 @@ class OrchestratorAgent:
             self.quiz_generator.difficulty = difficulty
 
     def _update_history(self, new_questions: List[Dict]):
-        """Обновление истории вопросов."""
+        """Обновление истории вопросов и сохранение на диск."""
         logger.info("Updating quiz history...")
         old_size = len(self.quiz_history)
 
+        updated = False
         for q in new_questions:
-            concept_term = q.get("concept_term", "")
-            if not concept_term:
-                concept_term = q.get("concept_definition", "")
+            # Используем ваше исправление (сырой текст вопроса)
+            question_text = q.get("question", "").strip()
 
-            if concept_term:
-                q_hash = compute_hash(concept_term)
-                self.quiz_history.add(q_hash)
+            if question_text and question_text not in self.quiz_history:
+                self.quiz_history.add(question_text)
+                updated = True
 
         new_size = len(self.quiz_history)
-        logger.info(f"History updated: {old_size} → {new_size} unique concepts")
+        logger.info(f"History updated: {old_size} → {new_size} unique questions")
+
+        # --- ДОБАВЛЕНО 1 версия
+        if updated:
+            logger.info("Saving updated history to disk...")
+            # CacheManager принимает сериализуемые объекты, поэтому преобразуем set в list
+            self.cache_manager.save(self.global_history_key, list(self.quiz_history))
+        # -----------------
 
     def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
         """Поиск вопроса по ID."""
@@ -481,7 +410,7 @@ class OrchestratorAgent:
         self.current_note_hash = ""
         self.verified_concepts = []
         self.current_quiz = []
-        self.quiz_history.clear()
+        # self.quiz_history.clear()
         self.user_score = 0
         self.total_questions_answered = 0
         logger.info("✓ Session reset complete")

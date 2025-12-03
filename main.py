@@ -2,16 +2,40 @@
 
 """
 CLI Точка входа в приложение «Генератор Умных Квизов».
-Запуск: python main.py <path_to_note> [options]
+
+Интеллектуальная система для генерации образовательных тестов из заметок
+с использованием LLM GigaChat.
+
+Запуск:
+    python main.py [FILE] [OPTIONS]
 
 Аргументы:
-  path_to_note          Путь к текстовому файлу с заметкой
-  --difficulty, -d      Сложность (easy, medium, hard)
-  --questions, -q       Количество вопросов (по умолчанию из config.json)
-  --force, -f           Принудительный парсинг (игнорировать кэш)
-  --debug               Включить подробное логирование
-  --help, -h            Показать справку по флагам
+    FILE                    Путь к текстовому файлу с заметкой (обязательно)
+
+Опции генерации:
+    -d, --difficulty LEVEL  Сложность вопросов (easy, medium, hard) [default: medium]
+    -q, --questions N       Количество вопросов для генерации
+    -m, --model NAME        Модель GigaChat (например: GigaChat-Pro, GigaChat-Max)
+
+Опции управления состоянием:
+    -f, --force             Принудительный перепарсинг текста (игнорировать кэш концептов)
+    --ignore-history        Игнорировать историю прошлых вопросов (разрешить дубликаты)
+
+Системные опции:
+    --debug                 Включить подробное логирование (DEBUG level)
+    -h, --help              Показать это справочное сообщение
+
+Примеры:
+    # Базовый запуск
+    python main.py lectures/history.txt
+
+    # Сложный квиз из 10 вопросов на модели Pro
+    python main.py note.txt -d hard -q 10 -m GigaChat-Pro
+
+    # Тестовый прогон: игнорировать кэш и историю
+    python main.py note.txt --force --ignore-history
 """
+
 
 import argparse
 import json
@@ -168,17 +192,16 @@ def run_cli_quiz_session(orchestrator: OrchestratorAgent, quiz_data: list):
 def parse_arguments():
     """
     Парсинг аргументов командной строки.
-
-    Returns:
-        argparse.Namespace: Объект с аргументами
     """
     parser = argparse.ArgumentParser(
         description="🎓 Генератор Умных Квизов - CLI версия",
-        epilog="Примеры использования:\n"
-               "  python main.py notes.txt\n"
-               "  python main.py notes.txt -d hard -q 10\n"
-               "  python main.py notes.txt --force --debug\n",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Примеры использования:
+  python main.py notes.txt
+  python main.py notes.txt -d hard -q 10
+  python main.py notes.txt --force --ignore-history --model GigaChat-Pro
+        """
     )
 
     # Позиционный аргумент
@@ -187,32 +210,50 @@ def parse_arguments():
         help="Путь к файлу заметки (.txt, .md)"
     )
 
-    # Опциональные аргументы
-    parser.add_argument(
+    # Группа настроек генерации
+    gen_group = parser.add_argument_group('Настройки генерации')
+    gen_group.add_argument(
         "-d", "--difficulty",
         choices=['easy', 'medium', 'hard'],
-        help="Сложность вопросов (по умолчанию: medium)"
+        default=None,
+        help="Сложность вопросов (по умолчанию берется из config.json)"
     )
-
-    parser.add_argument(
+    gen_group.add_argument(
         "-q", "--questions",
         type=int,
-        help="Количество вопросов (по умолчанию: из config.json)"
+        default=None,
+        help="Количество вопросов"
+    )
+    gen_group.add_argument(
+        "-m", "--model",
+        type=str,
+        default=None,
+        help="Модель GigaChat (например: GigaChat-Pro, GigaChat-Max)"
     )
 
-    parser.add_argument(
+    # Группа управления поведением
+    behavior_group = parser.add_argument_group('Управление состоянием')
+    behavior_group.add_argument(
         "-f", "--force",
         action="store_true",
-        help="Принудительный парсинг (игнорировать кэш, даже если файл не изменился)"
+        help="Принудительный парсинг (игнорировать кэш концептов)"
+    )
+    behavior_group.add_argument(
+        "--ignore-history",
+        action="store_true",
+        help="Игнорировать историю вопросов (позволяет создавать дубликаты)"
     )
 
-    parser.add_argument(
+    # Группа системных настроек
+    sys_group = parser.add_argument_group('Системные')
+    sys_group.add_argument(
         "--debug",
         action="store_true",
-        help="Режим отладки (подробное логирование)"
+        help="Режим отладки (подробное логирование в консоль и файл)"
     )
 
     return parser.parse_args()
+
 
 
 # ============================================================================
@@ -252,6 +293,19 @@ def main():
         config = load_config()
         credentials = load_credentials()
 
+        # Если пользователь указал модель через флаг, переопределяем конфиг
+        if args.model:
+            # Убедимся, что секция существует
+            if "llm_settings" not in config:
+                config["llm_settings"] = {}
+
+            old_model = config["llm_settings"].get("model", "GigaChat")
+            config["llm_settings"]["model"] = args.model
+
+            print(f"🧠 Модель переопределена: {old_model} -> {args.model}")
+            logger.info(f"Model override via CLI: {args.model}")
+
+
         # Явно инициализируем CacheManager
         cache_manager = CacheManager(
             cache_dir=config.get('cache_settings', {}).get('cache_dir', 'data/cache')
@@ -284,7 +338,8 @@ def main():
             note_text=note_text,
             questions_count=args.questions,
             difficulty=args.difficulty,
-            force_reparse=args.force  # ✅ ПЕРЕДАЕМ ФЛАГ
+            force_reparse=args.force,  # ✅ ПЕРЕДАЕМ ФЛАГ
+            ignore_history = args.ignore_history
         )
 
         if result['status'] == 'error':
