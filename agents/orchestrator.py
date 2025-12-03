@@ -11,6 +11,26 @@ from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
 from utils.hashing import compute_hash
 
+from enum import Enum
+from dataclasses import dataclass
+
+# Типы контента, которые мы умеем различать
+class ContentType(Enum):
+    THEORY = "theory"       # Обычный текст, определения, факты
+    CODE = "code"           # Программный код, сниппеты
+    MATH = "math"           # Формулы, теоремы
+    LIST = "list"           # Списки, перечисления
+    SHORT = "short"         # Короткие заметки (zettelkasten)
+    UNKNOWN = "unknown"
+
+@dataclass
+class NoteAnalysis:
+    content_type: ContentType
+    summary: str
+    complexity: str  # easy, medium, hard
+    recommended_strategy: str # "standard", "code_practice", "direct_quiz"
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,6 +144,9 @@ class OrchestratorAgent:
         logger.info(f" - ignore_history: {ignore_history}")
 
         try:
+
+
+
             self._reset_session()
             self.current_note_hash = compute_hash(note_text)
             logger.info(f"Note hash computed: {self.current_note_hash}")
@@ -135,6 +158,9 @@ class OrchestratorAgent:
             if questions_count or difficulty:
                 logger.info(f"Updating quiz settings (count={questions_count}, difficulty={difficulty})")
                 self._update_quiz_settings(questions_count, difficulty)
+
+            analysis = self._analyze_content(note_text)
+            self._log_data_transfer("Orchestrator", "Self", analysis.__dict__, "analysis_result")
 
             # === SMART CACHE CHECK ===
             verified_cache_key = f"verified_{self.current_note_hash}"
@@ -153,12 +179,29 @@ class OrchestratorAgent:
             if cached_verified and not force_reparse:
                 # Горячий старт
                 self.verified_concepts = cached_verified
-            else:
+            if not cached_verified or force_reparse:
                 # === ХОЛОДНЫЙ СТАРТ ===
                 logger.info("\n" + "-" * 70)
                 logger.info("COLD START: Running full analysis pipeline")
                 logger.info("-" * 70)
 
+
+                if analysis.recommended_strategy == "direct_quiz":
+                    # СТРАТЕГИЯ: Прямая генерация (для коротких заметок)
+                    logger.info("🚀 STRATEGY: Direct Quiz (skipping parser)")
+                    # Создаем псевдо-концепт из всего текста
+                    extracted = [{"term": "Content", "definition": note_text}]
+
+                elif analysis.recommended_strategy == "code_practice":
+                    # СТРАТЕГИЯ: Код (в будущем тут будет CodeParser)
+                    logger.info("💻 STRATEGY: Code Practice")
+                    # Пока используем стандартный парсер, но можно менять промпт
+                    extracted = self.parser.parse_note(note_text)  # TODO: Pass type="code"
+
+                else:
+                    # СТРАТЕГИЯ: Стандартная (Theory)
+                    logger.info("📚 STRATEGY: Standard Pipeline")
+                    extracted = self.parser.parse_note(note_text)
                 # STEP 1: Парсинг
                 logger.info("\n>>> CALLING ParserAgent.parse_note()")
                 self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
@@ -205,6 +248,9 @@ class OrchestratorAgent:
             if ignore_history:
                 logger.info("⚠️ IGNORING HISTORY mode enabled")
 
+            quiz_difficulty = difficulty if difficulty else analysis.complexity
+
+            self.quiz_generator.difficulty = quiz_difficulty
             logger.info("\n>>> CALLING QuizAgent.generate_questions()")
             self._log_data_transfer("Orchestrator", "QuizAgent", {
                 "concepts": self.verified_concepts,
@@ -363,6 +409,69 @@ class OrchestratorAgent:
         logger.info(f"Stats: score={stats['score']}, accuracy={stats['accuracy']}%")
         return stats
 
+    def _analyze_content(self, text: str) -> NoteAnalysis:
+        """
+        Анализирует тип и структуру заметки с помощью LLM,
+        чтобы выбрать лучшую стратегию генерации.
+        """
+        logger.info("🧠 ORCHESTRATOR: Analyzing note structure...")
+
+        # Берем начало текста, чтобы не тратить токены (обычно суть в начале)
+        preview_text = text[:2000]
+
+        prompt = (
+            f"Проанализируй текст заметки и определи его тип.\n"
+            f"Текст (начало): {preview_text}\n\n"
+            f"Возможные типы:\n"
+            f"- theory: лекции, статьи, определения (стандартный текст)\n"
+            f"- code: программный код, функции, классы\n"
+            f"- math: математические формулы, задачи, теоремы\n"
+            f"- list: просто список фактов или слов\n"
+            f"- short: очень короткий текст (1-2 абзаца)\n\n"
+            f"Верни JSON: {{'type': '...', 'summary': 'кратко о чем', 'complexity': 'easy/medium/hard'}}"
+        )
+
+        try:
+            # Используем self.client для вызова LLM
+            # ВАЖНО: Тут предполагается, что ваш client умеет generate_json.
+            # Если нет, используйте просто generate и парсите.
+            response = self.client.generate_json(prompt)
+
+            c_type_str = response.get("type", "unknown").lower()
+            # Маппинг строки в Enum
+            try:
+                c_type = ContentType(c_type_str)
+            except ValueError:
+                c_type = ContentType.THEORY  # Фоллбек на стандарт
+
+            # Определяем стратегию
+            strategy = "standard"
+            if c_type == ContentType.CODE:
+                strategy = "code_practice"
+            elif c_type == ContentType.SHORT:
+                strategy = "direct_quiz"  # Пропускаем парсер, генерим сразу
+
+            c_complexity = response.get("complexity", "medium").lower()
+            if "hard" in c_complexity or "сложн" in c_complexity:
+                c_complexity = "hard"
+            elif "easy" in c_complexity or "легк" in c_complexity:
+                c_complexity = "easy"
+            else:
+                c_complexity = "medium"
+
+            logger.info(f"🧠 Analysis Result: Type={c_type.value}, Strategy={strategy}")
+            return NoteAnalysis(
+                content_type=c_type,
+                summary=response.get("summary", ""),
+                complexity=c_complexity,
+                recommended_strategy=strategy
+            )
+
+        except Exception as e:
+            logger.error(f"Analysis failed: {e}. Falling back to STANDARD strategy.")
+            # В случае ошибки возвращаем дефолт
+            return NoteAnalysis(ContentType.THEORY, "", "medium", "standard")
+
     def _update_quiz_settings(self, count: int, difficulty: str):
         """Обновление настроек квиза."""
         logger.info("Updating quiz generator settings:")
@@ -431,10 +540,14 @@ class OrchestratorAgent:
         if isinstance(data, (list, tuple)):
             logger.info(f"   Data size: {len(data)} items")
             if len(data) > 0 and len(data) <= 5:
-                logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+                # default=str заставит json вызывать str() для всех неизвестных типов (включая Enum)
+                logger.debug(f" Data preview: {json.dumps(data, ensure_ascii=False, indent=2, default=str)[:200]}...")
+
         elif isinstance(data, dict):
             logger.info(f"   Data keys: {list(data.keys())}")
-            logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+            # default=str заставит json вызывать str() для всех неизвестных типов (включая Enum)
+            logger.debug(f" Data preview: {json.dumps(data, ensure_ascii=False, indent=2, default=str)[:200]}...")
+
         elif isinstance(data, str):
             logger.info(f"   Data length: {len(data)} chars")
             logger.debug(f"   Data preview: '{data[:100]}...'")
