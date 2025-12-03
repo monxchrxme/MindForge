@@ -212,6 +212,13 @@ def parse_arguments():
         help="Режим отладки (подробное логирование)"
     )
 
+    parser.add_argument(
+        "-m", "--model",
+        type=str,
+        default=None,
+        help="Модель GigaChat (например: GigaChat, GigaChat-Pro, GigaChat-Max)"
+    )
+
     return parser.parse_args()
 
 
@@ -251,6 +258,19 @@ def main():
 
         config = load_config()
         credentials = load_credentials()
+
+        # Если пользователь указал модель через флаг, переопределяем конфиг
+        if args.model:
+            # Убедимся, что секция существует
+            if "llm_settings" not in config:
+                config["llm_settings"] = {}
+
+            old_model = config["llm_settings"].get("model", "GigaChat")
+            config["llm_settings"]["model"] = args.model
+
+            print(f"🧠 Модель переопределена: {old_model} -> {args.model}")
+            logger.info(f"Model override via CLI: {args.model}")
+
 
         # Явно инициализируем CacheManager
         cache_manager = CacheManager(
