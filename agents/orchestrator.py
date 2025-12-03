@@ -190,7 +190,11 @@ class OrchestratorAgent:
                     # СТРАТЕГИЯ: Прямая генерация (для коротких заметок)
                     logger.info("🚀 STRATEGY: Direct Quiz (skipping parser)")
                     # Создаем псевдо-концепт из всего текста
-                    extracted = [{"term": "Content", "definition": note_text}]
+                    self.current_quiz = self.quiz_generator.generate_questions(
+                        concepts=[],
+                        avoid_history=...,
+                        raw_text=note_text  # <-- Новый аргумент
+                    )
 
                 elif analysis.recommended_strategy == "code_practice":
                     # СТРАТЕГИЯ: Код (в будущем тут будет CodeParser)
@@ -448,8 +452,9 @@ class OrchestratorAgent:
             strategy = "standard"
             if c_type == ContentType.CODE:
                 strategy = "code_practice"
-            elif c_type == ContentType.SHORT:
+            elif c_type == ContentType.SHORT or c_type == ContentType.LIST or c_type == ContentType.SHORT:
                 strategy = "direct_quiz"  # Пропускаем парсер, генерим сразу
+
 
             c_complexity = response.get("complexity", "medium").lower()
             if "hard" in c_complexity or "сложн" in c_complexity:

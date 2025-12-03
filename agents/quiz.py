@@ -34,7 +34,8 @@ class QuizAgent:
     def generate_questions(
             self,
             concepts: List[Dict[str, Any]],
-            avoid_history: Set[str]
+            avoid_history: Set[str],
+            raw_text: str = None
     ) -> List[Dict[str, Any]]:
         """
         Генерирует уникальные вопросы на основе списка концептов.
@@ -60,7 +61,15 @@ class QuizAgent:
         logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
         logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
 
-        prompt = self._questions_prompt(concepts, avoid_history)
+        if raw_text:
+            logger.info("Using DIRECT TEXT strategy")
+            prompt = self._direct_text_prompt(raw_text, avoid_history)
+        else:
+            logger.info("Using CONCEPT-BASED strategy")
+            if not concepts:
+                logger.warning("No concepts provided for concept-based strategy")
+                return []
+            prompt = self._questions_prompt(concepts, avoid_history)
 
         # logger.debug(f"[STEP] Prompt constructed:\n{prompt}")
 
@@ -106,6 +115,85 @@ class QuizAgent:
 
         return processed_questions
 
+    def _direct_text_prompt(self, text: str, avoid_history: Set[str]) -> str:
+        """
+        Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
+        """
+        # Формируем блок истории, которую нужно избегать
+        avoid_part = ""
+        if avoid_history:
+            recent_history = list(avoid_history)[-15:]
+            avoid_part = "НЕ создавай вопросы, похожие на эти:\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
+
+        return (
+            f"Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.\n\n"
+            f"ТЕКСТ ЗАМЕТКИ:\n{text[:4000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
+            f"ЗАДАЧА:\n"
+            f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}'.\n"
+            f"Распределение типов: ~80% multiple_choice, ~20% true_false.\n\n"
+            f"ТРЕБОВАНИЯ К КОНТЕНТУ:\n"
+            f"- Вопросы должны проверять понимание сути текста, а не мелких деталей.\n"
+            f"- Дистракторы (неверные ответы) должны быть правдоподобными.\n"
+            f"{avoid_part}\n"
+            f"{self._get_format_instructions()}"  # <-- Используем наш новый метод
+        )
+
+
+    def _get_format_instructions(self) -> str:
+        """
+        Возвращает строгие инструкции по формату JSON для промпта.
+        Используется во всех типах генерации (по концептам и по тексту).
+        """
+        """СТРОГИЙ формат JSON (массив объектов):
+
+                    [
+                      {{
+                        "question": "Текст вопроса (макс 180 символов)",
+                        "type": "multiple_choice",
+                        "options": ["Вариант1", "Вариант2", ...] для multiple_choice,
+                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос",
+                        "correct_answer": "Вариант1" 
+                      }},
+                      {{
+                        "question": "Текст вопроса-утверждения",
+                        "type": "true_false",
+                        "options": ["True", "False"],
+                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос"
+                        "correct_answer": "True"
+                      }}
+                    ]
+
+                    КРИТИЧЕСКИ ВАЖНО: 
+                    - Возвращай ТОЛЬКО JSON-массив
+                    - Без пояснений, комментариев, markdown разметки
+                    - Проверь запятые и кавычки перед отправкой"""
+        return (
+            "СТРОГИЙ формат JSON (массив объектов):\n"
+            "[\n"
+            "  {\n"
+            "    \"question\": \"Текст вопроса (макс 200 символов)\",\n"
+            "    \"type\": \"multiple_choice\",\n"
+            "    \"options\": [\"вариант1\", \"вариант2\", \"вариант3\", \"вариант4\"],\n"
+            "    \"correct_answer\": \"вариант1\",\n"
+            "    \"related_concept\": \"тема вопроса (термин или ключевая фраза)\"\n"
+            "  },\n"
+            "  {\n"
+            "    \"question\": \"Текст утверждения\",\n"
+            "    \"type\": \"true_false\",\n"
+            "    \"options\": [\"True\", \"False\"],\n"
+            "    \"correct_answer\": \"True\",\n"
+            "    \"related_concept\": \"тема вопроса\"\n"
+            "  }\n"
+            "]\n\n"
+            "ВАЖНО:\n"
+            "1. Возвращай ТОЛЬКО валидный JSON-массив.\n"
+            "2. Не добавляй никаких комментариев, Markdown-блоков (```"
+            "3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.\n"
+            "4. В multiple_choice должно быть 4 варианта ответа."
+        )
+
+
+
 
     def _questions_prompt(
             self,
@@ -121,11 +209,6 @@ class QuizAgent:
 
         logger.info("[STEP] Constructing questions prompt")
 
-        # avoid_part = ""
-        # if avoid_history:
-        #     avoid_part = (
-        #             "\n".join(list(avoid_history))
-        #     )
 
         avoid_part = ""
         if avoid_history:
@@ -139,59 +222,6 @@ class QuizAgent:
         concept_part = "\n".join([
             f"{c['term']}: {c['definition']}" for c in concepts
         ])
-
-        '''
-        старый промт 
-        '''
-        # prompt = (
-        #     f"На основе следующих понятий и определений:\n{concept_part}\n\n"
-        #     f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}' "
-        #     f"(разных типов: множественный выбор, верно/неверно и т.п.). "
-        #     f"{avoid_part}\n"
-        #     "Формат ответа — JSON list из словарей, в каждом:\n"
-        #     "{'question': str, 'type': str, 'options': list|null, 'correct_answer': str, "
-        #     "'related_concept': str}\nВсе ответы должны быть различны по сути и формулировке."
-        # )
-
-        # prompt = (
-        #     f"Ты — генератор учебных вопросов для интеллектуальной системы квизов. "
-        #     f"Твоя задача — на основе следующих понятий и их определений:\n"
-        #     f"{concept_part}\n\n"
-        #     f"Сгенерируй {self.questions_count} уникальных осмысленных образовательных вопросов уровня сложности '{self.difficulty}'.\n"
-        #     f"Типы вопросов должны быть разнообразны и включать: множественный выбор (1 или больше вариантов ответа) (multiple_choice), верно/неверно (true_false)"
-        #     f"Старайся, чтобы примерно 80% вопросов были с выбором ответа (multiple_choice), 20% — верно/неверно (true_false)\n\n"
-        #
-        #     "Требования к вопросам:\n"
-        #     "— Каждый вопрос должен проверять понимание концепта, а не простое запоминание определения.\n"
-        #     "— Вопросы должны максимально различаться по смыслу и формулировкам, не допускать перефразирования одного и того же.\n"
-        #     "— Не используй слова 'всегда', 'никогда' и другие универсальные утверждения.\n"
-        #     "— Дистракторы (неправильные варианты в multiple_choice) должны быть правдоподобны и не вызывать сомнений своей искусственностью.\n"
-        #     "— Каждый вопрос обязательно должен быть связан с одним из переданных концептов.\n"
-        #     "— Для каждого вопроса в поле 'related_concept' укажи, к какому именно термину он относится из списка выше.\n"
-        #     "— НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n"
-        #     f"{avoid_part}\n\n"
-        #
-        #     "СТРОГИЙ формат ответа — JSON массив (list) из словарей, где каждый словарь (объект) обязательно содержит такие поля:\n"
-        #     "  'question': (str) — текст вопроса (до 180 символов)\n"
-        #     "  'type': (str) — тип вопроса: 'multiple_choice', 'true_false'\n"
-        #     "  'options': (list или null) — Список строк-ответов если multiple_choice (4-6 вариантов), иначе null\n"
-        #     "  'correct_answer': (str) — верный вариант ('a') — для multiple_choice; 'True'/'False' — для true_false;\n"
-        #     "  'related_concept': (str) — термин из переданного списка\n\n"
-        #
-        #     "Пример одного объекта для multiple_choice:\n"
-        #     "{"
-        #     "  'question': 'Какой основной принцип способа loci?',"
-        #     "  'type': 'multiple_choice',"
-        #     "  'options': ['a) Использование пространства памяти', 'b) Цветовые ассоциации', 'c) Ассоциативные числа', 'd) Усиление эмоций'],"
-        #     "  'correct_answer': 'a',"
-        #     "  'related_concept': 'метод локи'"
-        #     "}\n\n"
-        #
-        #     "Дополнительные указания:\n"
-        #     "— НЕ добавляй пояснений, комментариев, текста до и после/после JSON — только сам JSON-массив!\n"
-        #     "— Соблюдай формат строго, иначе твой ответ не пройдет автоматическую проверку.\n"
-        #     "— Вопросы должны быть максимально информативны для учебного теста.\n"
-        # )
 
         prompt = ( f"""Ты — генератор учебных вопросов для интеллектуальной системы квизов. Сгенерируй {self.questions_count} уникальных образовательных вопросов уровня сложности '{self.difficulty}' на основе концептов:
             {concept_part}
@@ -214,31 +244,9 @@ class QuizAgent:
             - Дистракторы (неправильные варианты в multiple_choice) должны быть правдоподобны и не вызывать сомнений своей искусственностью
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
             - НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):
-            {avoid_part}
-            
-            СТРОГИЙ формат JSON (массив объектов):
-            
-            [
-              {{
-                "question": "Текст вопроса (макс 180 символов)",
-                "type": "multiple_choice",
-                "options": ["Вариант1", "Вариант2", ...] для multiple_choice,
-                "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос",
-                "correct_answer": "Вариант1" 
-              }},
-              {{
-                "question": "Текст вопроса-утверждения",
-                "type": "true_false",
-                "options": ["True", "False"],
-                "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос"
-                "correct_answer": "True"
-              }}
-            ]
-            
-            КРИТИЧЕСКИ ВАЖНО: 
-            - Возвращай ТОЛЬКО JSON-массив
-            - Без пояснений, комментариев, markdown разметки
-            - Проверь запятые и кавычки перед отправкой"""
+            {avoid_part}\n
+            f"{self._get_format_instructions()}"
+            """
         )
 
         logger.info(f"[STEP] Prompt ready")
