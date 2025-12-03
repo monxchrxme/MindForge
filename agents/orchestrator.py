@@ -76,6 +76,16 @@ class OrchestratorAgent:
         self.current_quiz: List[Dict] = []
         self.quiz_history: Set[str] = set()
 
+        # загрузка глобальной истории вопросов
+        self.global_history_key = "global_quiz_history"
+        if self.cache_manager.exists(self.global_history_key):
+            loaded_history = self.cache_manager.load(self.global_history_key)
+            # Превращаем список обратно в множество
+            self.quiz_history: Set[str] = set(loaded_history) if loaded_history else set()
+            logger.info(f"Loaded global history: {len(self.quiz_history)} questions")
+        else:
+            self.quiz_history: Set[str] = set()
+
         # Статистика
         self.user_score: int = 0
         self.total_questions_answered: int = 0
@@ -358,18 +368,28 @@ class OrchestratorAgent:
             self.quiz_generator.difficulty = difficulty
 
     def _update_history(self, new_questions: List[Dict]):
-        """
-        Обновление истории вопросов.
-        Сохраняем полные тексты вопросов для семантической проверки в QuizAgent.
-        """
+        """Обновление истории вопросов и сохранение на диск."""
         logger.info("Updating quiz history...")
         old_size = len(self.quiz_history)
+
+        updated = False
         for q in new_questions:
-            question_text = q.get("question", "").strip().lower()
-            if question_text:
-                self.quiz_history.add(question_text)  # Сохраняем сам текст
+            # Используем ваше исправление (сырой текст вопроса)
+            question_text = q.get("question", "").strip()
+
+            if question_text and question_text not in self.quiz_history:
+                self.quiz_history.add(question_text)
+                updated = True
+
         new_size = len(self.quiz_history)
         logger.info(f"History updated: {old_size} → {new_size} unique questions")
+
+        # --- ДОБАВЛЕНО 1 версия
+        if updated:
+            logger.info("Saving updated history to disk...")
+            # CacheManager принимает сериализуемые объекты, поэтому преобразуем set в list
+            self.cache_manager.save(self.global_history_key, list(self.quiz_history))
+        # -----------------
 
     def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
         """Поиск вопроса по ID."""
@@ -384,7 +404,7 @@ class OrchestratorAgent:
         self.current_note_hash = ""
         self.verified_concepts = []
         self.current_quiz = []
-        self.quiz_history.clear()
+        # self.quiz_history.clear()
         self.user_score = 0
         self.total_questions_answered = 0
         logger.info("✓ Session reset complete")
