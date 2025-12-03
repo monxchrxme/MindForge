@@ -98,7 +98,8 @@ class OrchestratorAgent:
             note_text: str,
             questions_count: int = None,
             difficulty: str = None,
-            force_reparse: bool = False
+            force_reparse: bool = False,
+            ignore_history: bool = False
     ) -> Dict[str, Any]:
         """
         Полный пайплайн обработки заметки с детальным логированием.
@@ -120,6 +121,7 @@ class OrchestratorAgent:
         logger.info(f"  - questions_count: {questions_count}")
         logger.info(f"  - difficulty: {difficulty}")
         logger.info(f"  - force_reparse: {force_reparse}")
+        logger.info(f" - ignore_history: {ignore_history}")
 
         try:
             self._reset_session()
@@ -199,6 +201,10 @@ class OrchestratorAgent:
             logger.info(f"Concepts available: {len(self.verified_concepts)}")
             logger.info(f"Quiz history size: {len(self.quiz_history)}")
 
+            history_to_use = set() if ignore_history else self.quiz_history
+            if ignore_history:
+                logger.info("⚠️ IGNORING HISTORY mode enabled")
+
             logger.info("\n>>> CALLING QuizAgent.generate_questions()")
             self._log_data_transfer("Orchestrator", "QuizAgent", {
                 "concepts": self.verified_concepts,
@@ -207,7 +213,7 @@ class OrchestratorAgent:
 
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
-                avoid_history=self.quiz_history
+                avoid_history=history_to_use  # <--- 2. Передаем правильную историю
             )
 
             self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
