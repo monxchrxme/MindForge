@@ -5,6 +5,7 @@
 *.log
 
 test_trash.txt
+test2.md
 # Игнорирование виртуального окружения
 .venv/
 
