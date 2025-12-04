@@ -176,20 +176,25 @@ class OrchestratorAgent:
                 cached_verified = self.cache_manager.load(verified_cache_key)
 
             # 5. Определение стратегии и данных
+
+            current_strategy = analysis.recommended_strategy  # Значение по умолчанию
+
             # Если есть кэш и не нужен репарсинг -> используем кэш
-            if cached_verified and not force_reparse: #TODO
+            if cached_verified and not force_reparse:
                 logger.info(f"✓ HOT START: Loaded {len(cached_verified)} concepts from cache")
                 self.verified_concepts = cached_verified
-                # Стратегию оставляем ту, что предложил анализатор, или дефолтную
-                current_strategy = analysis.recommended_strategy
+
+                # Если хотя бы один концепт содержит код, считаем это code_practice
+                has_code = any(c.get('code_snippet') for c in self.verified_concepts)
+                current_strategy = "code_practice" if has_code else "standard"
+                logger.info(f"ℹ️ Strategy aligned with cache data: {current_strategy}")
 
             else:
                 # === ХОЛОДНЫЙ СТАРТ (Генерация с нуля) ===
                 logger.info("\n" + "-" * 70)
-                logger.info("COLD START: Running full analysis pipeline")
+                logger.info(f"COLD START: Running full analysis pipeline (Strategy: {current_strategy})")
                 logger.info("-" * 70)
 
-                current_strategy = analysis.recommended_strategy
                 extracted = []
 
                 # 5.1 Выполнение стратегии (Парсинг)
@@ -197,29 +202,29 @@ class OrchestratorAgent:
                     if current_strategy == "direct_quiz":
                         logger.info("🚀 STRATEGY: Direct Quiz (skipping parser)")
                         extracted = []  # Парсинг не нужен
-
                     elif current_strategy == "code_practice":
                         logger.info("💻 STRATEGY: Code Practice")
                         extracted = self.parser.parse_code_note(note_text)
-
                     else:  # standard
                         logger.info("📚 STRATEGY: Standard Pipeline")
                         self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
                         extracted = self.parser.parse_note(note_text)
-
                 except Exception as e:
                     logger.error(f"Parsing failed: {e}")
                     extracted = []
 
                 # 5.2 Логика Fallback (Самокоррекция)
-                # Если парсер вернул пустоту, но мы хотели парсить -> переключаемся на Direct Quiz
-                if not extracted and current_strategy != "direct_quiz":
-                    logger.warning(
-                        f"⚠️ Strategy '{current_strategy}' returned 0 concepts. Switching to Fallback: DIRECT_QUIZ.")
-                    current_strategy = "direct_quiz"
 
                 if not extracted and current_strategy != "direct_quiz":
-                    return {"status": "error", "message": "Не удалось извлечь концепты. Попробуйте другой текст."}
+                    logger.warning(
+                        f"⚠️ Strategy '{current_strategy}' returned 0 concepts. Switching to Fallback: DIRECT_QUIZ."
+                    )
+                    current_strategy = "direct_quiz"
+                    # При переключении на direct мы не считаем это ошибкой, просто идем дальше без концептов
+
+                # Если даже для Direct Quiz что-то пошло не так (хотя тут сложно ошибиться),
+                # или если мы не хотим фоллбек — вот тут можно вернуть ошибку.
+                # Но для direct_quiz нам концепты не нужны, поэтому проверок extracted тут не делаем.
 
                 # 5.3 Фактчек (только если есть что проверять)
                 if extracted and self.factcheck_enabled:
@@ -228,7 +233,7 @@ class OrchestratorAgent:
                 else:
                     self.verified_concepts = extracted
 
-                # 5.4 Сохранение в кэш (если нашли концепты)
+                # 5.4 Сохранение в кэш (только если нашли концепты)
                 if self.verified_concepts:
                     logger.info(f"Saving {len(self.verified_concepts)} concepts to cache...")
                     self.cache_manager.save(verified_cache_key, self.verified_concepts)
