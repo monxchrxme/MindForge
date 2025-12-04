@@ -1,4 +1,4 @@
-
+#TODO Добавить factcheck для кода
 import logging
 from typing import List, Dict
 from services.gigachat_client import GigaChatClient

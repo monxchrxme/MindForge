@@ -1,6 +1,4 @@
-# agents/quiz.py
-
-
+#TODO Написать нормальный промт для случаем: code и direct
 from typing import List, Dict, Set, Any
 from services.gigachat_client import GigaChatClient
 import uuid
@@ -35,14 +33,16 @@ class QuizAgent:
             self,
             concepts: List[Dict[str, Any]],
             avoid_history: Set[str],
-            raw_text: str = None
+            raw_text: str = None,
+            mode: str = None
     ) -> List[Dict[str, Any]]:
         """
         Генерирует уникальные вопросы на основе списка концептов.
 
         :param concepts: Список концептов [{ "term": str, "definition": str, ... }, ...]
         :param avoid_history: Множество (set) хешей текстов вопросов, которые нельзя повторять в этой сессии
-
+        :param raw_text: #TODO дописать описание
+        :param mode: #TODO Дописать описание mode
         :return: Список новых вопросов в формате:
         [
             {
@@ -61,7 +61,9 @@ class QuizAgent:
         logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
         logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
 
-        if raw_text:
+        if mode == "code_practice": #TODO mode
+            prompt = self._code_questions_prompt(concepts, avoid_history)
+        elif raw_text:
             logger.info("Using DIRECT TEXT strategy")
             prompt = self._direct_text_prompt(raw_text, avoid_history)
         else:
@@ -127,7 +129,7 @@ class QuizAgent:
 
         return (
             f"Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.\n\n"
-            f"ТЕКСТ ЗАМЕТКИ:\n{text[:4000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
+            f"ТЕКСТ ЗАМЕТКИ:\n{text[:2000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
             f"ЗАДАЧА:\n"
             f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}'.\n"
             f"Распределение типов: ~80% multiple_choice, ~20% true_false.\n\n"
@@ -137,6 +139,34 @@ class QuizAgent:
             f"{avoid_part}\n"
             f"{self._get_format_instructions()}"  # <-- Используем наш новый метод
         )
+
+    def _code_questions_prompt(self, concepts: List[Dict], avoid_history: Set[str]) -> str:
+        """
+        Промпт для генерации задач по коду.
+        Concepts здесь — это список словарей с ключом 'code_snippet'.
+        """
+        # Формируем контекст: Теория + Код
+        context_part = ""
+        for c in concepts:
+            snippet = c.get('code_snippet')
+            term = c.get('term')
+            if snippet:
+                context_part += f"=== КОНЦЕПТ: {term} ===\nКод:\n{snippet}\n\n"
+            else:
+                context_part += f"=== КОНЦЕПТ: {term} ===\n{c.get('definition')}\n\n"
+
+        return (
+            f"Ты — Senior Developer, проводящий собеседование. Сгенерируй {self.questions_count} практических задач по этому материалу.\n\n"
+            f"МАТЕРИАЛ:\n{context_part}\n\n"
+            f"ТИПЫ ВОПРОСОВ:\n"
+            f"1. Анализ кода: 'Что выведет этот код?', 'Какова сложность этого алгоритма?', 'Найди ошибку в строке 3'.\n"
+            f"2. Теория: только если к концепту не приложен код.\n\n"
+            f"ВАЖНО: Если вопрос требует анализа кода:\n"
+            f"1. Помести сам код в поле 'code_context'.\n"
+            f"2. В поле 'question' оставь только сам вопрос (например: 'Какова сложность этого алгоритма?').\n\n"
+            f"{self._get_format_instructions()}"
+        )
+
 
 
     def _get_format_instructions(self) -> str:
@@ -172,6 +202,7 @@ class QuizAgent:
             "[\n"
             "  {\n"
             "    \"question\": \"Текст вопроса (макс 200 символов)\",\n"
+            "    \"code_context\": \"(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.\",\n"
             "    \"type\": \"multiple_choice\",\n"
             "    \"options\": [\"вариант1\", \"вариант2\", \"вариант3\", \"вариант4\"],\n"
             "    \"correct_answer\": \"вариант1\",\n"

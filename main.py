@@ -124,6 +124,13 @@ def run_cli_quiz_session(orchestrator: OrchestratorAgent, quiz_data: list):
     for i, question in enumerate(quiz_data, 1):
         print(f"❓ ВОПРОС {i}/{len(quiz_data)}")
         print(f"   {question['question']}")
+
+        code_ctx = question.get('code_context')
+        if code_ctx:
+            print("\n" + "```")
+            print(code_ctx.strip())
+            print("```\n")
+
         print("-" * 40)
 
         options = question.get('options', [])

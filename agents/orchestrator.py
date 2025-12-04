@@ -200,7 +200,7 @@ class OrchestratorAgent:
                     # СТРАТЕГИЯ: Код (в будущем тут будет CodeParser)
                     logger.info("💻 STRATEGY: Code Practice")
                     # Пока используем стандартный парсер, но можно менять промпт
-                    extracted = self.parser.parse_note(note_text)  # TODO: Pass type="code"
+                    extracted = self.parser.parse_code_note(note_text)
 
                 else:
                     # СТРАТЕГИЯ: Стандартная (Theory)
@@ -210,7 +210,7 @@ class OrchestratorAgent:
                 logger.info("\n>>> CALLING ParserAgent.parse_note()")
                 self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
 
-                extracted = self.parser.parse_note(note_text)
+
 
                 self._log_data_transfer("ParserAgent", "Orchestrator", extracted, "extracted_concepts")
 
@@ -263,7 +263,8 @@ class OrchestratorAgent:
 
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
-                avoid_history=history_to_use  # <--- 2. Передаем правильную историю
+                avoid_history=history_to_use,
+                mode=analysis.recommended_strategy
             )
 
             self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
