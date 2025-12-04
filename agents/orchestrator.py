@@ -1,6 +1,6 @@
 import logging
 import json
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Optional
 
 from agents.parser import ParserAgent
 from agents.factcheck import FactCheckAgent
@@ -94,17 +94,17 @@ class OrchestratorAgent:
         self.current_note_hash: str = ""
         self.verified_concepts: List[Dict] = []
         self.current_quiz: List[Dict] = []
-        self.quiz_history: Set[str] = set()
+        self.quiz_history: List[str] = []
 
         # загрузка глобальной истории вопросов
         self.global_history_key = "global_quiz_history"
         if self.cache_manager.exists(self.global_history_key):
             loaded_history = self.cache_manager.load(self.global_history_key)
             # Превращаем список обратно в множество
-            self.quiz_history: Set[str] = set(loaded_history) if loaded_history else set()
+            self.quiz_history: List[str] = list(loaded_history) if loaded_history else []
             logger.info(f"Loaded global history: {len(self.quiz_history)} questions")
         else:
-            self.quiz_history: Set[str] = set()
+            self.quiz_history: List[str] = []
 
         # Статистика
         self.user_score: int = 0
@@ -248,7 +248,7 @@ class OrchestratorAgent:
             logger.info(f"Concepts available: {len(self.verified_concepts)}")
             logger.info(f"Quiz history size: {len(self.quiz_history)}")
 
-            history_to_use = set() if ignore_history else self.quiz_history
+            history_to_use = [] if ignore_history else self.quiz_history
             if ignore_history:
                 logger.info("⚠️ IGNORING HISTORY mode enabled")
 
@@ -499,7 +499,7 @@ class OrchestratorAgent:
             question_text = q.get("question", "").strip()
 
             if question_text and question_text not in self.quiz_history:
-                self.quiz_history.add(question_text)
+                self.quiz_history.append(question_text)
                 updated = True
 
         new_size = len(self.quiz_history)
