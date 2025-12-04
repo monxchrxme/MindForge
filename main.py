@@ -188,6 +188,15 @@ def run_cli_quiz_session(orchestrator: OrchestratorAgent, quiz_data: list):
     print("=" * 60)
     print(f"📊 Итоговый счет: {stats['score']} из {stats['total_questions']} ({stats['accuracy']}%)")
     print("=" * 60)
+    if 'llm_stats' in stats:
+        llm = stats['llm_stats']
+        total_tok = llm.get('prompt_tokens', 0) + llm.get('completion_tokens', 0)
+        print("-" * 60)
+        print("💰 РАСХОД ТОКЕНОВ (GigaChat):")
+        print(f"  ➤ Запросов к API:   {llm.get('total_requests', 0)}")
+        print(f"  ➤ Входящие токены:  {llm.get('prompt_tokens', 0)}")
+        print(f"  ➤ Исходящие токены: {llm.get('completion_tokens', 0)}")
+        print(f"  ➤ ВСЕГО ТОКЕНОВ:    {total_tok}")
 
 
 # ============================================================================
