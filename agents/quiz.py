@@ -1,5 +1,5 @@
 #TODO Написать нормальный промт для случаем: code и direct
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
 import json
@@ -245,9 +245,17 @@ class QuizAgent:
         if avoid_history:
             # Ограничиваем до 15 последних вопросов
             recent_history = list(avoid_history)[-15:]
+
+            # Обрезаем слишком длинные вопросы в истории, чтобы не тратить токены
+            # Нам важна суть, а не полный текст
+            shortened_history = [
+                q[:100] + "..." if len(q) > 100 else q
+                for q in recent_history
+            ]
+
             avoid_part = (
                     "НЕ создавай вопросы, похожие на эти:\n"
-                    + "\n".join([f"- {q}" for q in recent_history])
+                    + "\n".join([f"- {q}" for q in shortened_history])
             )
 
         concept_part = "\n".join([
@@ -367,95 +375,29 @@ class QuizAgent:
             history: List[str]
     ) -> List[Dict[str, Any]]:
         """
-        Фильтрует вопросы по уникальности (точное и семантическое совпадение).
-
-        :param questions: Список вопросов после структурной валидации
-        :param history: Множество текстов ранее заданных вопросов
-        :return: Список уникальных вопросов
+        Фильтрует самоповторы внутри текущей генерации.
+        Глобальная уникальность проверяется в Orchestrator через VectorHistoryManager.
         """
-        logger.info("[STEP] Validating uniqueness (exact + semantic)")
-
         unique = []
-        seen_exact = set(history)  # Для точного совпадения
-        seen_texts = list(history)  # Для семантического сравнения
+        # Следим, чтобы внутри одной пачки из 5 вопросов не было одинаковых
+        seen_in_batch = set()
 
         for idx, q in enumerate(questions):
             text = q.get("question", "").strip()
+            if not text:
+                continue
+
             text_lower = text.lower()
 
-            if not text:
-                logger.warning(f"[SKIP] Question #{idx + 1}: empty text")
+            # Проверка на дубликаты внутри ТЕКУЩЕЙ генерации
+            if text_lower in seen_in_batch:
+                logger.warning(f"[SKIP] Question #{idx + 1}: duplicate within current batch")
                 continue
 
-            # Проверка 1: Точное совпадение
-            if text_lower in seen_exact:
-                logger.info(f"[SKIP] Question #{idx + 1}: exact duplicate")
-                continue
-
-            # Проверка 2: Семантическое совпадение
-            is_duplicate = False
-            for seen_text in seen_texts:
-                if self._is_semantically_similar(text, seen_text):
-                    logger.info(f"[SKIP] Question #{idx + 1}: semantically similar to existing")
-                    is_duplicate = True
-                    break
-
-            if is_duplicate:
-                continue
-
-            # Вопрос уникален
             unique.append(q)
-            seen_exact.add(text_lower)
-            seen_texts.append(text)
-            logger.debug(f"[VALID] Question #{idx + 1} added as unique")
+            seen_in_batch.add(text_lower)
 
-        logger.info(f"[STEP] {len(unique)}/{len(questions)} questions passed uniqueness check")
         return unique
-
-
-    def _is_semantically_similar(
-            self,
-            q1: str,
-            q2: str,
-            threshold: float = 0.7
-    ) -> bool:
-        """
-        Проверяет семантическую похожесть вопросов через коэффициент Жаккара.
-
-        :param q1: Первый вопрос
-        :param q2: Второй вопрос
-        :param threshold: Порог похожести (0.7 = 70% совпадающих слов)
-        :return: True если вопросы похожи
-        """
-        # Удаляем стоп-слова и знаки препинания
-        import re
-        stop_words = {"как", "что", "где", "когда", "почему", "какой", "в", "на", "из", "по", "для", "с", "к"}
-
-        # Токенизация и очистка
-        def tokenize(text: str) -> Set[str]:
-            # Убираем знаки препинания, приводим к нижнему регистру
-            words = re.findall(r'\b\w+\b', text.lower())
-            # Фильтруем стоп-слова и короткие слова
-            return set(w for w in words if w not in stop_words and len(w) > 2)
-
-        words1 = tokenize(q1)
-        words2 = tokenize(q2)
-
-        if not words1 or not words2:
-            return False
-
-        # Коэффициент Жаккара (Jaccard similarity)
-        intersection = len(words1 & words2)
-        union = len(words1 | words2)
-
-        if union == 0:
-            return False
-
-        similarity = intersection / union
-
-        logger.debug(f"[SIMILARITY] {similarity:.2f} between:\n  '{q1[:50]}...'\n  '{q2[:50]}...'")
-
-        return similarity >= threshold
 
     def _post_process_questions(
             self,

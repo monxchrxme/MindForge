@@ -8,6 +8,7 @@ from agents.quiz import QuizAgent
 from agents.explain import ExplainAgent
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
+from services.vector_history import VectorHistoryManager
 from utils.hashing import compute_hash
 
 from enum import Enum
@@ -97,14 +98,9 @@ class OrchestratorAgent:
         self.quiz_history: List[str] = []
 
         # загрузка глобальной истории вопросов
-        self.global_history_key = "global_quiz_history"
-        if self.cache_manager.exists(self.global_history_key):
-            loaded_history = self.cache_manager.load(self.global_history_key)
-            # Превращаем список обратно в множество
-            self.quiz_history: List[str] = list(loaded_history) if loaded_history else []
-            logger.info(f"Loaded global history: {len(self.quiz_history)} questions")
-        else:
-            self.quiz_history: List[str] = []
+        self.vector_history = VectorHistoryManager(
+            persist_directory=config.get('vector_db_path', 'data/vector_db')
+        )
 
         # Статистика
         self.user_score: int = 0
@@ -245,7 +241,8 @@ class OrchestratorAgent:
             logger.info(f"Concepts available: {len(self.verified_concepts)}")
             logger.info(f"Quiz history size: {len(self.quiz_history)}")
 
-            history_to_use = [] if ignore_history else self.quiz_history
+            history_to_use = [] if ignore_history else (self.vector_history.get_recent_questions(limit=15))
+
             if ignore_history:
                 logger.info("⚠️ IGNORING HISTORY mode enabled")
 
@@ -486,28 +483,28 @@ class OrchestratorAgent:
             self.quiz_generator.difficulty = difficulty
 
     def _update_history(self, new_questions: List[Dict]):
-        """Обновление истории вопросов и сохранение на диск."""
-        logger.info("Updating quiz history...")
-        old_size = len(self.quiz_history)
+        """Обновление векторной истории."""
+        logger.info("Updating vector history...")
 
-        updated = False
+        # Фильтруем дубликаты через семантический поиск
+        unique_questions = []
         for q in new_questions:
-            # Используем ваше исправление (сырой текст вопроса)
             question_text = q.get("question", "").strip()
+            if not question_text:
+                continue
 
-            if question_text and question_text not in self.quiz_history:
-                self.quiz_history.append(question_text)
-                updated = True
+            # Проверяем похожесть на существующие
+            similar = self.vector_history.find_similar(question_text, threshold=0.85)
 
-        new_size = len(self.quiz_history)
-        logger.info(f"History updated: {old_size} → {new_size} unique questions")
+            if not similar:
+                unique_questions.append(q)
+            else:
+                logger.debug(f"Skipping duplicate: '{question_text[:50]}...'")
 
-        # --- ДОБАВЛЕНО 1 версия
-        if updated:
-            logger.info("Saving updated history to disk...")
-            # CacheManager принимает сериализуемые объекты, поэтому преобразуем set в list
-            self.cache_manager.save(self.global_history_key, list(self.quiz_history))
-        # -----------------
+        if unique_questions:
+            self.vector_history.add_questions(unique_questions)
+            logger.info(f"Added {len(unique_questions)} unique questions to history")
+
 
     def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
         """Поиск вопроса по ID."""
