@@ -61,7 +61,7 @@ class QuizAgent:
         logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
         logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
 
-        if mode == "code_practice": #TODO mode
+        if mode == "code_practice":
             prompt = self._code_questions_prompt(concepts, avoid_history)
         elif raw_text:
             logger.info("Using DIRECT TEXT strategy")
