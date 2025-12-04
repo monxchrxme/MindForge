@@ -32,7 +32,7 @@ class QuizAgent:
     def generate_questions(
             self,
             concepts: List[Dict[str, Any]],
-            avoid_history: Set[str],
+            avoid_history: List[str],
             raw_text: str = None,
             mode: str = None
     ) -> List[Dict[str, Any]]:
@@ -40,7 +40,7 @@ class QuizAgent:
         Генерирует уникальные вопросы на основе списка концептов.
 
         :param concepts: Список концептов [{ "term": str, "definition": str, ... }, ...]
-        :param avoid_history: Множество (set) хешей текстов вопросов, которые нельзя повторять в этой сессии
+        :param avoid_history: Список вопросов, которые нельзя повторять в этой сессии
         :param raw_text: #TODO дописать описание
         :param mode: #TODO Дописать описание mode
         :return: Список новых вопросов в формате:
@@ -117,7 +117,7 @@ class QuizAgent:
 
         return processed_questions
 
-    def _direct_text_prompt(self, text: str, avoid_history: Set[str]) -> str:
+    def _direct_text_prompt(self, text: str, avoid_history: List[str]) -> str:
         """
         Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
         """
@@ -140,7 +140,7 @@ class QuizAgent:
             f"{self._get_format_instructions()}"  # <-- Используем наш новый метод
         )
 
-    def _code_questions_prompt(self, concepts: List[Dict], avoid_history: Set[str]) -> str:
+    def _code_questions_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
         """
         Промпт для генерации задач по коду.
         Concepts здесь — это список словарей с ключом 'code_snippet'.
@@ -229,7 +229,7 @@ class QuizAgent:
     def _questions_prompt(
             self,
             concepts: List[Dict[str, Any]],
-            avoid_history: Set[str]
+            avoid_history: List[str]
     ) -> str:
         """
         Собирает системный промпт для LLM.
@@ -364,7 +364,7 @@ class QuizAgent:
     def _validate_unique(
             self,
             questions: List[Dict[str, Any]],
-            history: Set[str]
+            history: List[str]
     ) -> List[Dict[str, Any]]:
         """
         Фильтрует вопросы по уникальности (точное и семантическое совпадение).

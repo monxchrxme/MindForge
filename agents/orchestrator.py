@@ -1,4 +1,3 @@
-
 import logging
 import json
 from typing import Any, Dict, List, Set, Optional
@@ -20,7 +19,8 @@ class ContentType(Enum):
     CODE = "code"           # Программный код, сниппеты
     MATH = "math"           # Формулы, теоремы
     LIST = "list"           # Списки, перечисления
-    SHORT = "short"         # Короткие заметки (zettelkasten)
+    SHORT = "short"    # Короткие заметки (zettelkasten)
+    GARBAGE = "garbage"
     UNKNOWN = "unknown"
 
 @dataclass
@@ -192,7 +192,7 @@ class OrchestratorAgent:
                     # Создаем псевдо-концепт из всего текста
                     self.current_quiz = self.quiz_generator.generate_questions(
                         concepts=[],
-                        avoid_history=...,
+                        avoid_history=[],
                         raw_text=note_text  # <-- Новый аргумент
                     )
 
