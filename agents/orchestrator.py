@@ -1,7 +1,6 @@
-
 import logging
 import json
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Optional
 
 from agents.parser import ParserAgent
 from agents.factcheck import FactCheckAgent
@@ -9,7 +8,29 @@ from agents.quiz import QuizAgent
 from agents.explain import ExplainAgent
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
+from services.vector_history import VectorHistoryManager
 from utils.hashing import compute_hash
+
+from enum import Enum
+from dataclasses import dataclass
+
+# Типы контента, которые мы умеем различать
+class ContentType(Enum):
+    THEORY = "theory"       # Обычный текст, определения, факты
+    CODE = "code"           # Программный код, сниппеты
+    MATH = "math"           # Формулы, теоремы
+    LIST = "list"           # Списки, перечисления
+    SHORT = "short"    # Короткие заметки (zettelkasten)
+    GARBAGE = "garbage"
+    UNKNOWN = "unknown"
+
+@dataclass
+class NoteAnalysis:
+    content_type: ContentType
+    summary: str
+    complexity: str  # easy, medium, hard
+    recommended_strategy: str # "standard", "code_practice", "direct_quiz"
+
 
 logger = logging.getLogger(__name__)
 
@@ -74,17 +95,12 @@ class OrchestratorAgent:
         self.current_note_hash: str = ""
         self.verified_concepts: List[Dict] = []
         self.current_quiz: List[Dict] = []
-        self.quiz_history: Set[str] = set()
+        self.quiz_history: List[str] = []
 
         # загрузка глобальной истории вопросов
-        self.global_history_key = "global_quiz_history"
-        if self.cache_manager.exists(self.global_history_key):
-            loaded_history = self.cache_manager.load(self.global_history_key)
-            # Превращаем список обратно в множество
-            self.quiz_history: Set[str] = set(loaded_history) if loaded_history else set()
-            logger.info(f"Loaded global history: {len(self.quiz_history)} questions")
-        else:
-            self.quiz_history: Set[str] = set()
+        self.vector_history = VectorHistoryManager(
+            persist_directory=config.get('vector_db_path', 'data/vector_db')
+        )
 
         # Статистика
         self.user_score: int = 0
@@ -121,78 +137,102 @@ class OrchestratorAgent:
         logger.info(f"  - questions_count: {questions_count}")
         logger.info(f"  - difficulty: {difficulty}")
         logger.info(f"  - force_reparse: {force_reparse}")
-        logger.info(f" - ignore_history: {ignore_history}")
+        logger.info(f"  - ignore_history: {ignore_history}")
 
         try:
+            # 1. Инициализация
             self._reset_session()
             self.current_note_hash = compute_hash(note_text)
             logger.info(f"Note hash computed: {self.current_note_hash}")
 
-            if force_reparse:
-                logger.warning("⚠️ FORCE REPARSE MODE: Cache will be ignored")
-
-            # Обновление настроек квиза
             if questions_count or difficulty:
                 logger.info(f"Updating quiz settings (count={questions_count}, difficulty={difficulty})")
                 self._update_quiz_settings(questions_count, difficulty)
 
-            # === SMART CACHE CHECK ===
+            # 2. Анализ контента
+            analysis = self._analyze_content(note_text)
+
+            # Логирование анализа (с фиксом Enum для JSON)
+            analysis_log = analysis.__dict__.copy()
+            analysis_log["content_type"] = str(analysis.content_type.value)
+            self._log_data_transfer("Orchestrator", "Self", analysis_log, "analysis_result")
+
+            # 3. Фильтр мусора
+            if analysis.content_type == ContentType.UNKNOWN and len(note_text) < 50:
+                return {"status": "error", "message": "Текст слишком короткий."}
+            elif analysis.content_type == ContentType.GARBAGE:
+                return {"status": "error", "message": "Текст неинформативный."}
+
+            # 4. Работа с кэшем концептов
             verified_cache_key = f"verified_{self.current_note_hash}"
             cached_verified = None
 
             if not force_reparse and self.cache_manager.exists(verified_cache_key):
                 logger.info("✓ Verified cache found, loading...")
                 cached_verified = self.cache_manager.load(verified_cache_key)
-                logger.info(f"✓ Loaded {len(cached_verified)} verified concepts from cache")
-                self._log_data_transfer("CacheManager", "Orchestrator", cached_verified, "verified_concepts")
-            elif force_reparse:
-                logger.info("⚠️ Skipping cache lookup (force mode)")
-            else:
-                logger.info("✗ Verified cache not found")
 
+            # 5. Определение стратегии и данных
+
+            current_strategy = analysis.recommended_strategy  # Значение по умолчанию
+
+            # Если есть кэш и не нужен репарсинг -> используем кэш
             if cached_verified and not force_reparse:
-                # Горячий старт
+                logger.info(f"✓ HOT START: Loaded {len(cached_verified)} concepts from cache")
                 self.verified_concepts = cached_verified
+
+                # Если хотя бы один концепт содержит код, считаем это code_practice
+                has_code = any(c.get('code_snippet') for c in self.verified_concepts)
+                current_strategy = "code_practice" if has_code else "standard"
+                logger.info(f"ℹ️ Strategy aligned with cache data: {current_strategy}")
+
             else:
-                # === ХОЛОДНЫЙ СТАРТ ===
+                # === ХОЛОДНЫЙ СТАРТ (Генерация с нуля) ===
                 logger.info("\n" + "-" * 70)
-                logger.info("COLD START: Running full analysis pipeline")
+                logger.info(f"COLD START: Running full analysis pipeline (Strategy: {current_strategy})")
                 logger.info("-" * 70)
 
-                # STEP 1: Парсинг
-                logger.info("\n>>> CALLING ParserAgent.parse_note()")
-                self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
+                extracted = []
 
-                extracted = self.parser.parse_note(note_text)
+                # 5.1 Выполнение стратегии (Парсинг)
+                try:
+                    if current_strategy == "direct_quiz":
+                        logger.info("🚀 STRATEGY: Direct Quiz (skipping parser)")
+                        extracted = []  # Парсинг не нужен
+                    elif current_strategy == "code_practice":
+                        logger.info("💻 STRATEGY: Code Practice")
+                        extracted = self.parser.parse_code_note(note_text)
+                    else:  # standard
+                        logger.info("📚 STRATEGY: Standard Pipeline")
+                        self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
+                        extracted = self.parser.parse_note(note_text)
+                except Exception as e:
+                    logger.error(f"Parsing failed: {e}")
+                    extracted = []
 
-                self._log_data_transfer("ParserAgent", "Orchestrator", extracted, "extracted_concepts")
+                # 5.2 Логика Fallback (Самокоррекция)
 
-                if not extracted:
-                    logger.error("ParserAgent returned empty result")
-                    return {
-                        "status": "error",
-                        "message": "Не удалось извлечь концепты из текста."
-                    }
-                logger.info(f"✓ Received {len(extracted)} concepts from ParserAgent")
+                if not extracted and current_strategy != "direct_quiz":
+                    logger.warning(
+                        f"⚠️ Strategy '{current_strategy}' returned 0 concepts. Switching to Fallback: DIRECT_QUIZ."
+                    )
+                    current_strategy = "direct_quiz"
+                    # При переключении на direct мы не считаем это ошибкой, просто идем дальше без концептов
 
-                # STEP 2: Фактчек
-                if self.factcheck_enabled:
+                # Если даже для Direct Quiz что-то пошло не так (хотя тут сложно ошибиться),
+                # или если мы не хотим фоллбек — вот тут можно вернуть ошибку.
+                # Но для direct_quiz нам концепты не нужны, поэтому проверок extracted тут не делаем.
+
+                # 5.3 Фактчек (только если есть что проверять)
+                if extracted and self.factcheck_enabled:
                     logger.info("\n>>> CALLING FactCheckAgent.verify_concepts()")
-                    self._log_data_transfer("Orchestrator", "FactCheckAgent", extracted, "concepts_to_verify")
-
                     self.verified_concepts = self.fact_checker.verify_concepts(extracted)
-
-                    self._log_data_transfer("FactCheckAgent", "Orchestrator", self.verified_concepts,
-                                            "verified_concepts")
-                    logger.info(f"✓ Received {len(self.verified_concepts)} verified concepts")
                 else:
-                    logger.info("FactCheck disabled, using raw concepts")
                     self.verified_concepts = extracted
 
-                # STEP 3: Сохранение в кэш
-                logger.info(f"\n>>> SAVING to verified cache (key: {verified_cache_key[:32]}...)")
-                self.cache_manager.save(verified_cache_key, self.verified_concepts)
-                logger.info("✓ Verified concepts saved to cache")
+                # 5.4 Сохранение в кэш (только если нашли концепты)
+                if self.verified_concepts:
+                    logger.info(f"Saving {len(self.verified_concepts)} concepts to cache...")
+                    self.cache_manager.save(verified_cache_key, self.verified_concepts)
 
             # === ГЕНЕРАЦИЯ КВИЗА ===
             logger.info("\n" + "-" * 70)
@@ -201,10 +241,14 @@ class OrchestratorAgent:
             logger.info(f"Concepts available: {len(self.verified_concepts)}")
             logger.info(f"Quiz history size: {len(self.quiz_history)}")
 
-            history_to_use = set() if ignore_history else self.quiz_history
+            history_to_use = [] if ignore_history else (self.vector_history.get_recent_questions(limit=15))
+
             if ignore_history:
                 logger.info("⚠️ IGNORING HISTORY mode enabled")
 
+            quiz_difficulty = difficulty if difficulty else analysis.complexity
+
+            self.quiz_generator.difficulty = quiz_difficulty
             logger.info("\n>>> CALLING QuizAgent.generate_questions()")
             self._log_data_transfer("Orchestrator", "QuizAgent", {
                 "concepts": self.verified_concepts,
@@ -213,7 +257,8 @@ class OrchestratorAgent:
 
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
-                avoid_history=history_to_use  # <--- 2. Передаем правильную историю
+                avoid_history=history_to_use,
+                mode=analysis.recommended_strategy
             )
 
             self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
@@ -363,6 +408,70 @@ class OrchestratorAgent:
         logger.info(f"Stats: score={stats['score']}, accuracy={stats['accuracy']}%")
         return stats
 
+    def _analyze_content(self, text: str) -> NoteAnalysis:
+        """
+        Анализирует тип и структуру заметки с помощью LLM,
+        чтобы выбрать лучшую стратегию генерации.
+        """
+        logger.info("🧠 ORCHESTRATOR: Analyzing note structure...")
+
+        # Берем начало текста, чтобы не тратить токены (обычно суть в начале)
+        preview_text = text[:2000]
+
+        prompt = (
+            f"Проанализируй текст заметки и определи его тип.\n"
+            f"Текст (начало): {preview_text}\n\n"
+            f"Возможные типы:\n"
+            f"- theory: лекции, статьи, определения (стандартный текст)\n"
+            f"- code: программный код, функции, классы\n"
+            f"- math: математические формулы, задачи, теоремы\n"
+            f"- list: просто список фактов или слов\n"
+            f"- short: очень короткий текст (1-2 абзаца)\n\n"
+            f"Верни JSON: {{'type': '...', 'summary': 'кратко о чем', 'complexity': 'easy/medium/hard'}}"
+        )
+
+        try:
+            # Используем self.client для вызова LLM
+            # ВАЖНО: Тут предполагается, что ваш client умеет generate_json.
+            # Если нет, используйте просто generate и парсите.
+            response = self.client.generate_json(prompt)
+
+            c_type_str = response.get("type", "unknown").lower()
+            # Маппинг строки в Enum
+            try:
+                c_type = ContentType(c_type_str)
+            except ValueError:
+                c_type = ContentType.THEORY  # Фоллбек на стандарт
+
+            # Определяем стратегию
+            strategy = "standard"
+            if c_type == ContentType.CODE:
+                strategy = "code_practice"
+            elif c_type == ContentType.SHORT or c_type == ContentType.LIST:
+                strategy = "direct_quiz"  # Пропускаем парсер, генерим сразу
+
+
+            c_complexity = response.get("complexity", "medium").lower()
+            if "hard" in c_complexity or "сложн" in c_complexity:
+                c_complexity = "hard"
+            elif "easy" in c_complexity or "легк" in c_complexity:
+                c_complexity = "easy"
+            else:
+                c_complexity = "medium"
+
+            logger.info(f"🧠 Analysis Result: Type={c_type.value}, Strategy={strategy}")
+            return NoteAnalysis(
+                content_type=c_type,
+                summary=response.get("summary", ""),
+                complexity=c_complexity,
+                recommended_strategy=strategy
+            )
+
+        except Exception as e:
+            logger.error(f"Analysis failed: {e}. Falling back to STANDARD strategy.")
+            # В случае ошибки возвращаем дефолт
+            return NoteAnalysis(ContentType.THEORY, "", "medium", "standard")
+
     def _update_quiz_settings(self, count: int, difficulty: str):
         """Обновление настроек квиза."""
         logger.info("Updating quiz generator settings:")
@@ -374,28 +483,28 @@ class OrchestratorAgent:
             self.quiz_generator.difficulty = difficulty
 
     def _update_history(self, new_questions: List[Dict]):
-        """Обновление истории вопросов и сохранение на диск."""
-        logger.info("Updating quiz history...")
-        old_size = len(self.quiz_history)
+        """Обновление векторной истории."""
+        logger.info("Updating vector history...")
 
-        updated = False
+        # Фильтруем дубликаты через семантический поиск
+        unique_questions = []
         for q in new_questions:
-            # Используем ваше исправление (сырой текст вопроса)
             question_text = q.get("question", "").strip()
+            if not question_text:
+                continue
 
-            if question_text and question_text not in self.quiz_history:
-                self.quiz_history.add(question_text)
-                updated = True
+            # Проверяем похожесть на существующие
+            similar = self.vector_history.find_similar(question_text, threshold=0.85)
 
-        new_size = len(self.quiz_history)
-        logger.info(f"History updated: {old_size} → {new_size} unique questions")
+            if not similar:
+                unique_questions.append(q)
+            else:
+                logger.debug(f"Skipping duplicate: '{question_text[:50]}...'")
 
-        # --- ДОБАВЛЕНО 1 версия
-        if updated:
-            logger.info("Saving updated history to disk...")
-            # CacheManager принимает сериализуемые объекты, поэтому преобразуем set в list
-            self.cache_manager.save(self.global_history_key, list(self.quiz_history))
-        # -----------------
+        if unique_questions:
+            self.vector_history.add_questions(unique_questions)
+            logger.info(f"Added {len(unique_questions)} unique questions to history")
+
 
     def _find_question_by_id(self, q_id: str) -> Optional[Dict]:
         """Поиск вопроса по ID."""
@@ -431,10 +540,14 @@ class OrchestratorAgent:
         if isinstance(data, (list, tuple)):
             logger.info(f"   Data size: {len(data)} items")
             if len(data) > 0 and len(data) <= 5:
-                logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+                # default=str заставит json вызывать str() для всех неизвестных типов (включая Enum)
+                logger.debug(f" Data preview: {json.dumps(data, ensure_ascii=False, indent=2, default=str)[:200]}...")
+
         elif isinstance(data, dict):
             logger.info(f"   Data keys: {list(data.keys())}")
-            logger.debug(f"   Data preview: {json.dumps(data, ensure_ascii=False, indent=2)[:200]}...")
+            # default=str заставит json вызывать str() для всех неизвестных типов (включая Enum)
+            logger.debug(f" Data preview: {json.dumps(data, ensure_ascii=False, indent=2, default=str)[:200]}...")
+
         elif isinstance(data, str):
             logger.info(f"   Data length: {len(data)} chars")
             logger.debug(f"   Data preview: '{data[:100]}...'")

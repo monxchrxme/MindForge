@@ -2,3 +2,5 @@ langchain-gigachat
 langchain
 python-dotenv
 requests
+chromadb
+sentence-transformers

@@ -1,7 +1,5 @@
-# agents/quiz.py
-
-
-from typing import List, Dict, Set, Any
+#TODO Написать нормальный промт для случаем: code и direct
+from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
 import json
@@ -34,14 +32,17 @@ class QuizAgent:
     def generate_questions(
             self,
             concepts: List[Dict[str, Any]],
-            avoid_history: Set[str]
+            avoid_history: List[str],
+            raw_text: str = None,
+            mode: str = None
     ) -> List[Dict[str, Any]]:
         """
         Генерирует уникальные вопросы на основе списка концептов.
 
         :param concepts: Список концептов [{ "term": str, "definition": str, ... }, ...]
-        :param avoid_history: Множество (set) хешей текстов вопросов, которые нельзя повторять в этой сессии
-
+        :param avoid_history: Список вопросов, которые нельзя повторять в этой сессии
+        :param raw_text: #TODO дописать описание
+        :param mode: #TODO Дописать описание mode
         :return: Список новых вопросов в формате:
         [
             {
@@ -60,7 +61,17 @@ class QuizAgent:
         logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
         logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
 
-        prompt = self._questions_prompt(concepts, avoid_history)
+        if mode == "code_practice":
+            prompt = self._code_questions_prompt(concepts, avoid_history)
+        elif raw_text:
+            logger.info("Using DIRECT TEXT strategy")
+            prompt = self._direct_text_prompt(raw_text, avoid_history)
+        else:
+            logger.info("Using CONCEPT-BASED strategy")
+            if not concepts:
+                logger.warning("No concepts provided for concept-based strategy")
+                return []
+            prompt = self._questions_prompt(concepts, avoid_history)
 
         # logger.debug(f"[STEP] Prompt constructed:\n{prompt}")
 
@@ -106,11 +117,119 @@ class QuizAgent:
 
         return processed_questions
 
+    def _direct_text_prompt(self, text: str, avoid_history: List[str]) -> str:
+        """
+        Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
+        """
+        # Формируем блок истории, которую нужно избегать
+        avoid_part = ""
+        if avoid_history:
+            recent_history = list(avoid_history)[-15:]
+            avoid_part = "НЕ создавай вопросы, похожие на эти:\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
+
+        return (
+            f"Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.\n\n"
+            f"ТЕКСТ ЗАМЕТКИ:\n{text[:2000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
+            f"ЗАДАЧА:\n"
+            f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}'.\n"
+            f"Распределение типов: ~80% multiple_choice, ~20% true_false.\n\n"
+            f"ТРЕБОВАНИЯ К КОНТЕНТУ:\n"
+            f"- Вопросы должны проверять понимание сути текста, а не мелких деталей.\n"
+            f"- Дистракторы (неверные ответы) должны быть правдоподобными.\n"
+            f"{avoid_part}\n"
+            f"{self._get_format_instructions()}"  # <-- Используем наш новый метод
+        )
+
+    def _code_questions_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
+        """
+        Промпт для генерации задач по коду.
+        Concepts здесь — это список словарей с ключом 'code_snippet'.
+        """
+        # Формируем контекст: Теория + Код
+        context_part = ""
+        for c in concepts:
+            snippet = c.get('code_snippet')
+            term = c.get('term')
+            if snippet:
+                context_part += f"=== КОНЦЕПТ: {term} ===\nКод:\n{snippet}\n\n"
+            else:
+                context_part += f"=== КОНЦЕПТ: {term} ===\n{c.get('definition')}\n\n"
+
+        return (
+            f"Ты — Senior Developer, проводящий собеседование. Сгенерируй {self.questions_count} практических задач по этому материалу.\n\n"
+            f"МАТЕРИАЛ:\n{context_part}\n\n"
+            f"ТИПЫ ВОПРОСОВ:\n"
+            f"1. Анализ кода: 'Что выведет этот код?', 'Какова сложность этого алгоритма?', 'Найди ошибку в строке 3'.\n"
+            f"2. Теория: только если к концепту не приложен код.\n\n"
+            f"ВАЖНО: Если вопрос требует анализа кода:\n"
+            f"1. Помести сам код в поле 'code_context'.\n"
+            f"2. В поле 'question' оставь только сам вопрос (например: 'Какова сложность этого алгоритма?').\n\n"
+            f"{self._get_format_instructions()}"
+        )
+
+
+
+    def _get_format_instructions(self) -> str:
+        """
+        Возвращает строгие инструкции по формату JSON для промпта.
+        Используется во всех типах генерации (по концептам и по тексту).
+        """
+        """СТРОГИЙ формат JSON (массив объектов):
+
+                    [
+                      {{
+                        "question": "Текст вопроса (макс 180 символов)",
+                        "type": "multiple_choice",
+                        "options": ["Вариант1", "Вариант2", ...] для multiple_choice,
+                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос",
+                        "correct_answer": "Вариант1" 
+                      }},
+                      {{
+                        "question": "Текст вопроса-утверждения",
+                        "type": "true_false",
+                        "options": ["True", "False"],
+                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос"
+                        "correct_answer": "True"
+                      }}
+                    ]
+
+                    КРИТИЧЕСКИ ВАЖНО: 
+                    - Возвращай ТОЛЬКО JSON-массив
+                    - Без пояснений, комментариев, markdown разметки
+                    - Проверь запятые и кавычки перед отправкой"""
+        return (
+            "СТРОГИЙ формат JSON (массив объектов):\n"
+            "[\n"
+            "  {\n"
+            "    \"question\": \"Текст вопроса (макс 200 символов)\",\n"
+            "    \"code_context\": \"(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.\",\n"
+            "    \"type\": \"multiple_choice\",\n"
+            "    \"options\": [\"вариант1\", \"вариант2\", \"вариант3\", \"вариант4\"],\n"
+            "    \"correct_answer\": \"вариант1\",\n"
+            "    \"related_concept\": \"тема вопроса (термин или ключевая фраза)\"\n"
+            "  },\n"
+            "  {\n"
+            "    \"question\": \"Текст утверждения\",\n"
+            "    \"type\": \"true_false\",\n"
+            "    \"options\": [\"True\", \"False\"],\n"
+            "    \"correct_answer\": \"True\",\n"
+            "    \"related_concept\": \"тема вопроса\"\n"
+            "  }\n"
+            "]\n\n"
+            "ВАЖНО:\n"
+            "1. Возвращай ТОЛЬКО валидный JSON-массив.\n"
+            "2. Не добавляй никаких комментариев, Markdown-блоков (```"
+            "3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.\n"
+            "4. В multiple_choice должно быть 4 варианта ответа."
+        )
+
+
+
 
     def _questions_prompt(
             self,
             concepts: List[Dict[str, Any]],
-            avoid_history: Set[str]
+            avoid_history: List[str]
     ) -> str:
         """
         Собирает системный промпт для LLM.
@@ -121,77 +240,27 @@ class QuizAgent:
 
         logger.info("[STEP] Constructing questions prompt")
 
-        # avoid_part = ""
-        # if avoid_history:
-        #     avoid_part = (
-        #             "\n".join(list(avoid_history))
-        #     )
 
         avoid_part = ""
         if avoid_history:
             # Ограничиваем до 15 последних вопросов
             recent_history = list(avoid_history)[-15:]
+
+            # Обрезаем слишком длинные вопросы в истории, чтобы не тратить токены
+            # Нам важна суть, а не полный текст
+            shortened_history = [
+                q[:100] + "..." if len(q) > 100 else q
+                for q in recent_history
+            ]
+
             avoid_part = (
                     "НЕ создавай вопросы, похожие на эти:\n"
-                    + "\n".join([f"- {q}" for q in recent_history])
+                    + "\n".join([f"- {q}" for q in shortened_history])
             )
 
         concept_part = "\n".join([
             f"{c['term']}: {c['definition']}" for c in concepts
         ])
-
-        '''
-        старый промт 
-        '''
-        # prompt = (
-        #     f"На основе следующих понятий и определений:\n{concept_part}\n\n"
-        #     f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}' "
-        #     f"(разных типов: множественный выбор, верно/неверно и т.п.). "
-        #     f"{avoid_part}\n"
-        #     "Формат ответа — JSON list из словарей, в каждом:\n"
-        #     "{'question': str, 'type': str, 'options': list|null, 'correct_answer': str, "
-        #     "'related_concept': str}\nВсе ответы должны быть различны по сути и формулировке."
-        # )
-
-        # prompt = (
-        #     f"Ты — генератор учебных вопросов для интеллектуальной системы квизов. "
-        #     f"Твоя задача — на основе следующих понятий и их определений:\n"
-        #     f"{concept_part}\n\n"
-        #     f"Сгенерируй {self.questions_count} уникальных осмысленных образовательных вопросов уровня сложности '{self.difficulty}'.\n"
-        #     f"Типы вопросов должны быть разнообразны и включать: множественный выбор (1 или больше вариантов ответа) (multiple_choice), верно/неверно (true_false)"
-        #     f"Старайся, чтобы примерно 80% вопросов были с выбором ответа (multiple_choice), 20% — верно/неверно (true_false)\n\n"
-        #
-        #     "Требования к вопросам:\n"
-        #     "— Каждый вопрос должен проверять понимание концепта, а не простое запоминание определения.\n"
-        #     "— Вопросы должны максимально различаться по смыслу и формулировкам, не допускать перефразирования одного и того же.\n"
-        #     "— Не используй слова 'всегда', 'никогда' и другие универсальные утверждения.\n"
-        #     "— Дистракторы (неправильные варианты в multiple_choice) должны быть правдоподобны и не вызывать сомнений своей искусственностью.\n"
-        #     "— Каждый вопрос обязательно должен быть связан с одним из переданных концептов.\n"
-        #     "— Для каждого вопроса в поле 'related_concept' укажи, к какому именно термину он относится из списка выше.\n"
-        #     "— НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n"
-        #     f"{avoid_part}\n\n"
-        #
-        #     "СТРОГИЙ формат ответа — JSON массив (list) из словарей, где каждый словарь (объект) обязательно содержит такие поля:\n"
-        #     "  'question': (str) — текст вопроса (до 180 символов)\n"
-        #     "  'type': (str) — тип вопроса: 'multiple_choice', 'true_false'\n"
-        #     "  'options': (list или null) — Список строк-ответов если multiple_choice (4-6 вариантов), иначе null\n"
-        #     "  'correct_answer': (str) — верный вариант ('a') — для multiple_choice; 'True'/'False' — для true_false;\n"
-        #     "  'related_concept': (str) — термин из переданного списка\n\n"
-        #
-        #     "Пример одного объекта для multiple_choice:\n"
-        #     "{"
-        #     "  'question': 'Какой основной принцип способа loci?',"
-        #     "  'type': 'multiple_choice',"
-        #     "  'options': ['a) Использование пространства памяти', 'b) Цветовые ассоциации', 'c) Ассоциативные числа', 'd) Усиление эмоций'],"
-        #     "  'correct_answer': 'a',"
-        #     "  'related_concept': 'метод локи'"
-        #     "}\n\n"
-        #
-        #     "Дополнительные указания:\n"
-        #     "— НЕ добавляй пояснений, комментариев, текста до и после/после JSON — только сам JSON-массив!\n"
-        #     "— Соблюдай формат строго, иначе твой ответ не пройдет автоматическую проверку.\n"
-        #     "— Вопросы должны быть максимально информативны для учебного теста.\n"
-        # )
 
         prompt = ( f"""Ты — генератор учебных вопросов для интеллектуальной системы квизов. Сгенерируй {self.questions_count} уникальных образовательных вопросов уровня сложности '{self.difficulty}' на основе концептов:
             {concept_part}
@@ -213,35 +282,10 @@ class QuizAgent:
             - Вопросы проверяют понимание, а не запоминание
             - Дистракторы (неправильные варианты в multiple_choice) должны быть правдоподобны и не вызывать сомнений своей искусственностью
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
-            - НЕ создавай схожих по смыслу и формулировке вопросов в рамках одного теста 
-            - Избегай TRUE/FALSE вопросов, требующих выбора варианта ("Какой код корректен?" → True/False - ЗАПРЕЩЕНО), а также MULTIPLE_CHOICE с вариантами "True/False" ("Что произойдет?" → True/False варианты - ЗАПРЕЩЕНО)
             - НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):
-            {avoid_part}
-            
-            СТРОГИЙ формат JSON (массив объектов):
-            
-            [
-              {{
-                "question": "Текст вопроса (макс 180 символов)",
-                "type": "multiple_choice",
-                "options": ["Вариант1", "Вариант2", ...] для multiple_choice,
-                "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос",
-                "correct_answer": "Вариант1" 
-              }},
-              {{
-                "question": "Текст вопроса-утверждения",
-                "type": "true_false",
-                "options": ["True", "False"],
-                "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос"
-                "correct_answer": "True"
-              }}
-            ]
-            
-            КРИТИЧЕСКИ ВАЖНО: 
-            - Возвращай ТОЛЬКО JSON-массив
-            - Без пояснений, комментариев, markdown разметки
-            - Проверь запятые, двоеточия и кавычки перед отправкой
-            - ПРОВЕРЬ соответствие типа вопроса и формата вариантов ответа!"""
+            {avoid_part}\n
+            f"{self._get_format_instructions()}"
+            """
         )
 
         logger.info(f"[STEP] Prompt ready")
@@ -328,98 +372,32 @@ class QuizAgent:
     def _validate_unique(
             self,
             questions: List[Dict[str, Any]],
-            history: Set[str]
+            history: List[str]
     ) -> List[Dict[str, Any]]:
         """
-        Фильтрует вопросы по уникальности (точное и семантическое совпадение).
-
-        :param questions: Список вопросов после структурной валидации
-        :param history: Множество текстов ранее заданных вопросов
-        :return: Список уникальных вопросов
+        Фильтрует самоповторы внутри текущей генерации.
+        Глобальная уникальность проверяется в Orchestrator через VectorHistoryManager.
         """
-        logger.info("[STEP] Validating uniqueness (exact + semantic)")
-
         unique = []
-        seen_exact = set(history)  # Для точного совпадения
-        seen_texts = list(history)  # Для семантического сравнения
+        # Следим, чтобы внутри одной пачки из 5 вопросов не было одинаковых
+        seen_in_batch = set()
 
         for idx, q in enumerate(questions):
             text = q.get("question", "").strip()
+            if not text:
+                continue
+
             text_lower = text.lower()
 
-            if not text:
-                logger.warning(f"[SKIP] Question #{idx + 1}: empty text")
+            # Проверка на дубликаты внутри ТЕКУЩЕЙ генерации
+            if text_lower in seen_in_batch:
+                logger.warning(f"[SKIP] Question #{idx + 1}: duplicate within current batch")
                 continue
 
-            # Проверка 1: Точное совпадение
-            if text_lower in seen_exact:
-                logger.info(f"[SKIP] Question #{idx + 1}: exact duplicate")
-                continue
-
-            # Проверка 2: Семантическое совпадение
-            is_duplicate = False
-            for seen_text in seen_texts:
-                if self._is_semantically_similar(text, seen_text):
-                    logger.info(f"[SKIP] Question #{idx + 1}: semantically similar to existing")
-                    is_duplicate = True
-                    break
-
-            if is_duplicate:
-                continue
-
-            # Вопрос уникален
             unique.append(q)
-            seen_exact.add(text_lower)
-            seen_texts.append(text)
-            logger.debug(f"[VALID] Question #{idx + 1} added as unique")
+            seen_in_batch.add(text_lower)
 
-        logger.info(f"[STEP] {len(unique)}/{len(questions)} questions passed uniqueness check")
         return unique
-
-
-    def _is_semantically_similar(
-            self,
-            q1: str,
-            q2: str,
-            threshold: float = 0.7
-    ) -> bool:
-        """
-        Проверяет семантическую похожесть вопросов через коэффициент Жаккара.
-
-        :param q1: Первый вопрос
-        :param q2: Второй вопрос
-        :param threshold: Порог похожести (0.7 = 70% совпадающих слов)
-        :return: True если вопросы похожи
-        """
-        # Удаляем стоп-слова и знаки препинания
-        import re
-        stop_words = {"как", "что", "где", "когда", "почему", "какой", "в", "на", "из", "по", "для", "с", "к"}
-
-        # Токенизация и очистка
-        def tokenize(text: str) -> Set[str]:
-            # Убираем знаки препинания, приводим к нижнему регистру
-            words = re.findall(r'\b\w+\b', text.lower())
-            # Фильтруем стоп-слова и короткие слова
-            return set(w for w in words if w not in stop_words and len(w) > 2)
-
-        words1 = tokenize(q1)
-        words2 = tokenize(q2)
-
-        if not words1 or not words2:
-            return False
-
-        # Коэффициент Жаккара (Jaccard similarity)
-        intersection = len(words1 & words2)
-        union = len(words1 | words2)
-
-        if union == 0:
-            return False
-
-        similarity = intersection / union
-
-        logger.debug(f"[SIMILARITY] {similarity:.2f} between:\n  '{q1[:50]}...'\n  '{q2[:50]}...'")
-
-        return similarity >= threshold
 
     def _post_process_questions(
             self,
@@ -450,4 +428,3 @@ class QuizAgent:
 
         logger.info(f"[STEP] Post-processing complete: {len(questions)} questions processed")
         return questions
-

@@ -1,7 +1,9 @@
+#TODO написать норм промт для code стратегии
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
 from utils.hashing import compute_hash
 import logging
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 class ParserAgent:
@@ -39,6 +41,44 @@ class ParserAgent:
         if self.cache_enabled:
             self.cache_manager.save(note_hash, concepts)
         return concepts
+
+    def parse_code_note(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Специализированный парсинг для заметок с кодом.
+        Извлекает ключевые концепты И связанные с ними куски кода.
+        """
+        logger.info("ParserAgent: Running CODE extraction mode")
+
+        prompt = (
+            f"Проанализируй эту техническую заметку. Твоя задача — выделить пары 'Теория + Код'.\n"
+            f"Ищи определения, паттерны или алгоритмы, которые иллюстрируются кодом в тексте.\n\n"
+            f"Текст:\n{text}\n\n"  # Ограничение токенов
+            f"Верни JSON-список объектов:\n"
+            f"[\n"
+            f"  {{\n"
+            f"    \"term\": \"Название концепта/паттерна/функции\",\n"
+            f"    \"definition\": \"Краткое теоретическое объяснение\",\n"
+            f"    \"code_snippet\": \"Кусок кода, который к этому относится (или null, если кода нет)\"\n"
+            f"  }}\n"
+            f"]\n"
+            f"Если кода нет, поле code_snippet оставь пустым или null."
+        )
+
+        try:
+            result = self.client.generate_json(prompt)
+            # Валидация и очистка
+            valid_items = []
+            if isinstance(result, list):
+                for item in result:
+                    if item.get("term") and (item.get("definition") or item.get("code_snippet")):
+                        valid_items.append(item)
+
+            logger.info(f"Extracted {len(valid_items)} code-concept pairs")
+            return valid_items
+
+        except Exception as e:
+            logger.error(f"Code parsing failed: {e}")
+            return []
 
     def _extract_concepts_from_llm(self, text: str) -> list:
         """

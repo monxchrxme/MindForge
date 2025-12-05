@@ -21,7 +21,8 @@ class GigaChatClient:
             model: str = "GigaChat",
             temperature: float = 0.7,
             timeout: int = 30,
-            verify_ssl_certs: bool = False
+            verify_ssl_certs: bool = False,
+            use_api_for_tokens=True
     ):
         """
         Инициализация клиента GigaChat.
@@ -190,25 +191,41 @@ class GigaChatClient:
     def _update_stats(self, prompt: str, response: str) -> None:
         """
         Обновление статистики токенов.
-        Приблизительная оценка на основе длины текста (1 токен ≈ 4 символа для русского).
 
-        Args:
-            prompt: Текст промпта
-            response: Текст ответа модели
+        Считаем токены через официальный токенайзер GigaChat
+        (get_num_tokens). При use_api_for_tokens=True под капотом
+        используется /tokens/count.
         """
-        # Приблизительная оценка токенов
-        # Для более точного подсчета нужен токенизатор модели
-        prompt_tokens = len(prompt) // 4
-        completion_tokens = len(response) // 4
+        # 1. Считаем токены за текущий запрос
+        try:
+            prompt_tokens = self.gigachat.get_num_tokens(prompt)
+        except Exception as e:
+            logger.warning(f"Token count fallback (prompt): {e}")
+            prompt_tokens = max(1, round(len(prompt) / 4.6))
 
+        try:
+            completion_tokens = self.gigachat.get_num_tokens(response)
+        except Exception as e:
+            logger.warning(f"Token count fallback (completion): {e}")
+            completion_tokens = max(1, round(len(response) / 4.6))
+
+        current_total = prompt_tokens + completion_tokens
+
+        # 2. Обновляем общую статистику
         self.total_prompt_tokens += prompt_tokens
         self.total_completion_tokens += completion_tokens
         self.total_requests += 1
 
-        logger.debug(
-            f"Stats updated: +{prompt_tokens} prompt tokens, "
-            f"+{completion_tokens} completion tokens"
+        global_total = self.total_prompt_tokens + self.total_completion_tokens
+
+        # 3. Выводим лог (динамика)
+        #p - промт токены, c - сколько нейро выдало
+        logger.info(
+            f"💰 Token Usage [Req #{self.total_requests}]: "
+            f"+{current_total} (P:{prompt_tokens}/C:{completion_tokens}) "
+            f"| Total Session: {global_total}"
         )
+
 
     def _parse_json_from_text(self, text: str) -> Union[Dict, List[Dict]]:
         """
