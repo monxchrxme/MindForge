@@ -2,7 +2,6 @@
 from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,90 +33,66 @@ class QuizAgent:
             concepts: List[Dict[str, Any]],
             avoid_history: List[str],
             raw_text: str = None,
-            mode: str = None
+            mode: str = "standard"
     ) -> List[Dict[str, Any]]:
+
+        logger.info(f"[START] QuizAgent strategy dispatch: mode={mode}")
+
+        if mode == "direct_quiz":
+            return self._generate_direct_quiz(raw_text, avoid_history)
+        elif mode == "code_practice":
+            return self._generate_code_quiz(concepts, avoid_history)
+        else:  # standard
+            return self._generate_standard_quiz(concepts, avoid_history)
+
+    def _generate_direct_quiz(self, text: str, history: List[str]) -> List[Dict]:
+        logger.info("🚀 STRATEGY EXECUTION: Direct Quiz")
+        # Лимит вопросов для direct режима (защита от галлюцинаций)
+        count = min(self.questions_count, 3)
+        prompt = self._direct_text_prompt(text, history, count)
+
+        # Передаем пустой список концептов, т.к. в direct режиме их нет
+        return self._execute_pipeline(prompt, [], history)
+
+    def _generate_code_quiz(self, concepts: List[Dict], history: List[str]) -> List[Dict]:
+        logger.info("💻 STRATEGY EXECUTION: Code Practice")
+        prompt = self._code_questions_prompt(concepts, history)
+        return self._execute_pipeline(prompt, concepts, history)
+
+    def _generate_standard_quiz(self, concepts: List[Dict], history: List[str]) -> List[Dict]:
+        logger.info("📚 STRATEGY EXECUTION: Standard Quiz")
+        prompt = self._questions_prompt(concepts, history)
+        return self._execute_pipeline(prompt, concepts, history)
+
+    def _execute_pipeline(
+            self,
+            prompt: str,
+            concepts: List[Dict],
+            history: List[str]
+    ) -> List[Dict]:
         """
-        Генерирует уникальные вопросы на основе списка концептов.
-
-        :param concepts: Список концептов [{ "term": str, "definition": str, ... }, ...]
-        :param avoid_history: Список вопросов, которые нельзя повторять в этой сессии
-        :param raw_text: #TODO дописать описание
-        :param mode: #TODO Дописать описание mode
-        :return: Список новых вопросов в формате:
-        [
-            {
-                "question_id": str, # UUID для уникальности (генерируется здесь)
-                "question": str,    # текст вопроса
-                "type": str,        # "multiple_choice", "true_false", etc.
-                "options": List[str],         # для multiple_choice
-                "correct_answer": str,
-                "related_concept": str,       # термин/ключ, на который ссылается вопрос
-                "concept_definition": str     # определение (для ExplainAgent)
-            },
-            ...
-        ]
+        Общий конвейер обработки: LLM -> JSON -> Validate -> Unique -> PostProcess
         """
-        logger.info("[START] QuizAgent.generate_questions called")
-        logger.debug(f"[INPUT] concepts:\n{json.dumps(concepts, ensure_ascii=False, indent=2)}")
-        logger.debug(f"[INPUT] avoid_history:\n{json.dumps(list(avoid_history), ensure_ascii=False, indent=2)}")
-
-        if mode == "code_practice":
-            prompt = self._code_questions_prompt(concepts, avoid_history)
-        elif raw_text:
-            logger.info("Using DIRECT TEXT strategy")
-            prompt = self._direct_text_prompt(raw_text, avoid_history)
-        else:
-            logger.info("Using CONCEPT-BASED strategy")
-            if not concepts:
-                logger.warning("No concepts provided for concept-based strategy")
-                return []
-            prompt = self._questions_prompt(concepts, avoid_history)
-
-        # logger.debug(f"[STEP] Prompt constructed:\n{prompt}")
-
-        # raw_questions = self.client.generate_json(prompt)
-        # logger.info(f"[STEP] raw_questions from LLM:\n{json.dumps(raw_questions, ensure_ascii=False, indent=2)}")
-
-        # Шаг 1: Получение JSON от LLM (с обработкой ошибок)
+        # 1. Вызов LLM
         try:
             raw_questions = self.client.generate_json(prompt)
-            logger.debug(
-                f"[STEP] Received {len(raw_questions) if isinstance(raw_questions, list) else 'N/A'} raw questions from LLM")
-        except ValueError as e:
-            logger.error(f"[ERROR] JSON parsing failed after retries: {e}")
-            return []
         except Exception as e:
-            logger.error(f"[ERROR] Unexpected error in generate_json: {e}")
+            logger.error(f"[ERROR] LLM generation failed: {e}")
             return []
 
-        # Шаг 2: Валидация структуры (НОВЫЙ МЕТОД)
-        valid_and_filtered_questions = self._validate_and_filter_questions(raw_questions)
+        # 2. Валидация структуры (общая для всех)
+        valid_questions = self._validate_and_filter_questions(raw_questions)
 
-        # Шаг 3: Проверка уникальности
-        valid_questions = self._validate_unique(valid_and_filtered_questions, avoid_history)
-        logger.debug(f"[STEP] After validation, valid_questions:\n{json.dumps(valid_questions, ensure_ascii=False, indent=2)}")
+        # 3. Фильтрация дублей в текущей пачке
+        unique_questions = self._validate_unique(valid_questions, history)
 
-        # Шаг 4: Постобработка (добавление UUID, concept_definition)
-        processed_questions = self._post_process_questions(valid_questions, concepts)
-        logger.info("[FINISH] QuizAgent.generate_questions finished")
-        logger.info(f"[FINISH] Returning {len(processed_questions)} questions")
-        logger.debug(f"[OUTPUT] processed_questions:\n{json.dumps(processed_questions, ensure_ascii=False, indent=2)}")
+        # 4. Пост-процессинг (UUID, Definitions)
+        final_questions = self._post_process_questions(unique_questions, concepts)
 
-        # ДОБАВИТЬ логирование для диагностики
-        if len(processed_questions) < self.questions_count:
-            logger.warning(
-                f"[WARNING] Generated {len(processed_questions)}/{self.questions_count} questions. "
-                f"Some questions were filtered out during validation."
-            )
+        logger.info(f"[FINISH] Pipeline completed. Generated {len(final_questions)} questions.")
+        return final_questions
 
-        if not processed_questions:
-            logger.error("[ERROR] No valid questions generated. Check prompt and LLM response.")
-
-        logger.info(f"[FINISH] Returning {len(processed_questions)} questions")
-
-        return processed_questions
-
-    def _direct_text_prompt(self, text: str, avoid_history: List[str]) -> str:
+    def _direct_text_prompt(self, text: str, avoid_history: List[str], count: int) -> str:
         """
         Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
         """
@@ -129,6 +104,8 @@ class QuizAgent:
 
         return (
             f"Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.\n\n"
+            f"Сгенерируй {count} уникальных вопросов..."
+            
             f"ТЕКСТ ЗАМЕТКИ:\n{text[:2000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
             f"ЗАДАЧА:\n"
             f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}'.\n"
@@ -137,14 +114,48 @@ class QuizAgent:
             f"- Вопросы должны проверять понимание сути текста, а не мелких деталей.\n"
             f"- Дистракторы (неверные ответы) должны быть правдоподобными.\n"
             f"{avoid_part}\n"
-            f"{self._get_format_instructions()}"  # <-- Используем наш новый метод
+            f"{self._get_direct_quiz_format()}"
         )
+
+    def _get_code_quiz_format(self) -> str:
+        """
+        Формат JSON для Code Quiz, где code_context критически важен.
+        """
+        return (
+            "СТРОГИЙ формат JSON (массив объектов):\n"
+            "[\n"
+            " {\n"
+            '  "question": "Что выведет этот код?",\n'
+            '  "code_context": "def func():\\n    return 42",\n'
+            '  "type": "multiple_choice",\n'
+            '  "options": ["42", "Error", "None", "0"],\n'
+            '  "correct_answer": "42",\n'
+            '  "related_concept": "Функции",\n'
+            '  "concept_definition": "..."\n'
+            " }\n"
+            "]\n"
+            "ВАЖНО: Поле 'code_context' должно содержать форматированный код с переносами строк (\\n)."
+        )
+
 
     def _code_questions_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
         """
         Промпт для генерации задач по коду.
         Concepts здесь — это список словарей с ключом 'code_snippet'.
         """
+        avoid_part = ""
+        if avoid_history:
+            # Ограничиваем и обрезаем историю для экономии токенов
+            recent_history = list(avoid_history)[-15:]
+            shortened_history = [
+                q[:100] + "..." if len(q) > 100 else q
+                for q in recent_history
+            ]
+            avoid_part = (
+                    "НЕ создавай вопросы, похожие на эти (по смыслу и коду):\n"
+                    + "\n".join([f"- {q}" for q in shortened_history]) + "\n"
+            )
+
         # Формируем контекст: Теория + Код
         context_part = ""
         for c in concepts:
@@ -161,13 +172,15 @@ class QuizAgent:
             f"ТИПЫ ВОПРОСОВ:\n"
             f"1. Анализ кода: 'Что выведет этот код?', 'Какова сложность этого алгоритма?', 'Найди ошибку в строке 3'.\n"
             f"2. Теория: только если к концепту не приложен код.\n\n"
+
+            # Вставляем блок избегания повторов
+            f"{avoid_part}\n"
+
             f"ВАЖНО: Если вопрос требует анализа кода:\n"
             f"1. Помести сам код в поле 'code_context'.\n"
             f"2. В поле 'question' оставь только сам вопрос (например: 'Какова сложность этого алгоритма?').\n\n"
-            f"{self._get_format_instructions()}"
+            f"{self._get_code_quiz_format()}"
         )
-
-
 
     def _get_format_instructions(self) -> str:
         """
@@ -222,6 +235,28 @@ class QuizAgent:
             "3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.\n"
             "4. В multiple_choice должно быть 4 варианта ответа."
         )
+
+
+    def _get_direct_quiz_format(self) -> str:
+        """
+        Формат JSON для Direct Quiz с обязательным полем concept_definition.
+        """
+        return (
+            "СТРОГИЙ формат JSON (массив объектов):\n"
+            "[\n"
+            " {\n"
+            '  "question": "Текст вопроса...",\n'
+            '  "code_context": "Код или null",\n'
+            '  "type": "multiple_choice",\n'
+            '  "options": ["вариант1", ...],\n'
+            '  "correct_answer": "вариант1",\n'
+            '  "related_concept": "тема вопроса",\n'
+            '  "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."\n'
+            " }\n"
+            "]\n"
+            "ВАЖНО: Возвращай ТОЛЬКО валидный JSON-массив."
+        )
+
 
 
 
@@ -319,53 +354,63 @@ class QuizAgent:
         logger.info(f"[STEP] Validated {len(valid_questions)}/{len(raw_questions)} questions")
         return valid_questions
 
-
     def _validate_question_structure(self, q: Dict[str, Any]) -> bool:
         """
-        Проверяет, что вопрос содержит все обязательные поля и корректные значения.
-
-        :param q: Словарь с данными вопроса
-        :return: True если структура корректна, False иначе
+        Проверяет и НОРМАЛИЗУЕТ структуру вопроса.
+        Исправляет типичные ошибки LLM (типы, регистр, форматы).
         """
-        # Проверка обязательных полей
-        required_fields = ["question", "type", "correct_answer", "related_concept"]
-        for field in required_fields:
-            if field not in q or not q[field]:
-                logger.warning(f"[VALIDATION] Missing or empty required field '{field}': {q}")
-                return False
+        # 1. Проверка текста вопроса
+        if not q.get("question"):
+            logger.warning("[VALIDATION] Empty question text")
+            return False
 
-        # Проверка допустимых типов вопросов
+        # 2. Авто-коррекция типа вопроса
+        raw_type = q.get("type", "").lower().strip()
+        if raw_type in ["single_choice", "multi_choice", "choice"]:
+            q["type"] = "multiple_choice"
+        elif raw_type in ["boolean", "bool", "yes_no"]:
+            q["type"] = "true_false"
+
+        # 3. Проверка поддерживаемых типов
         valid_types = ["multiple_choice", "true_false"]
         if q["type"] not in valid_types:
-            logger.warning(f"[VALIDATION] Invalid question type '{q['type']}'. Expected: {valid_types}")
+            logger.warning(f"[VALIDATION] Unknown type '{q.get('type')}' (raw: {raw_type})")
             return False
 
-        # Валидация для multiple_choice
+        # 4. Нормализация related_concept
+        if not q.get("related_concept"):
+            q["related_concept"] = "General"
+
+        # 5. Валидация multiple_choice
         if q["type"] == "multiple_choice":
-            options = q.get("options")
-
-            # options должны быть списком
+            options = q.get("options", [])
             if not isinstance(options, list) or len(options) < 2:
-                logger.warning(f"[VALIDATION] multiple_choice must have list of options (min 2): {options}")
+                logger.warning(f"[VALIDATION] multiple_choice needs list of 2+ options. Got: {options}")
                 return False
 
-            # correct_answer должен быть в options
-            if q["correct_answer"] not in options:
-                logger.warning(f"[VALIDATION] correct_answer '{q['correct_answer']}' not in options: {options}")
+            # Нормализация опций и ответа (все в строки)
+            q["options"] = [str(opt).strip() for opt in options]
+            q["correct_answer"] = str(q.get("correct_answer", "")).strip()
+
+            if q["correct_answer"] not in q["options"]:
+                logger.warning(f"[VALIDATION] correct_answer '{q['correct_answer']}' not in options {q['options']}")
                 return False
 
-        # Валидация для true_false
+        # 6. Валидация true_false
         if q["type"] == "true_false":
-            valid_answers = ["True", "False", "true", "false"]
-            if q["correct_answer"] not in valid_answers:
-                logger.warning(
-                    f"[VALIDATION] true_false correct_answer must be True/False, got: '{q['correct_answer']}'")
+            # Нормализация ответа
+            ans_str = str(q.get("correct_answer", "")).lower().strip()
+
+            if ans_str in ["true", "1", "yes", "верно", "да"]:
+                q["correct_answer"] = "True"
+            elif ans_str in ["false", "0", "no", "неверно", "нет"]:
+                q["correct_answer"] = "False"
+            else:
+                logger.warning(f"[VALIDATION] Invalid bool answer: {ans_str}")
                 return False
 
-        # Проверка длины вопроса (опционально)
-        if len(q["question"]) > 250:
-            logger.warning(f"[VALIDATION] Question too long ({len(q['question'])} chars): {q['question'][:50]}...")
-            return False
+            # Принудительно ставим красивые опции
+            q["options"] = ["True", "False"]
 
         return True
 
@@ -404,27 +449,21 @@ class QuizAgent:
             questions: List[Dict[str, Any]],
             concepts: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Добавляет UUID, подтягивает определение концепта для ExplainAgent.
-        :param questions: Список вопросов без дубликатов
-        :param concepts: Исходные концепты
-        :return: Финализированный список вопросов для Orchestrator
-        """
-
-        logger.info("[STEP] Post-processing questions (assigning UUIDs, concept_definition)")
-
         concept_lookup = {c["term"]: c["definition"] for c in concepts}
 
-        for idx, q in enumerate(questions):
-            original = q.copy()
+        for q in questions:
             q["question_id"] = str(uuid.uuid4())
-            related = q.get("related_concept") or ""
-            q["concept_definition"] = concept_lookup.get(related, "")
-            logger.debug(
-                f"[UPDATE] Processed question #{idx + 1}:\n"
-                f"[ORIGINAL] {json.dumps(original, ensure_ascii=False, indent=2)}\n"
-                f"[UPDATED]  {json.dumps(q, ensure_ascii=False, indent=2)}"
-            )
 
-        logger.info(f"[STEP] Post-processing complete: {len(questions)} questions processed")
+            # Нормализация полей (чтобы не было KeyError)
+            q["code_context"] = q.get("code_context")  # None если нет
+
+            # Логика определений
+            if q.get("concept_definition"):
+                # Если LLM сама дала определение (Direct Mode) - оставляем
+                pass
+            else:
+                # Иначе ищем в базе концептов (Standard/Code Mode)
+                related = q.get("related_concept", "")
+                q["concept_definition"] = concept_lookup.get(related, "")
+
         return questions
