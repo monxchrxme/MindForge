@@ -70,8 +70,19 @@ class ParserAgent:
             valid_items = []
             if isinstance(result, list):
                 for item in result:
-                    if item.get("term") and (item.get("definition") or item.get("code_snippet")):
-                        valid_items.append(item)
+                    # Нормализация ключей
+                    term = item.get("term")
+                    definition = item.get("definition")
+                    code = item.get("code_snippet")
+
+                    if term and (definition or code):
+                        # Явно формируем чистый словарь
+                        clean_item = {
+                            "term": term,
+                            "definition": definition or "",  # Пустая строка вместо None для текста
+                            "code_snippet": code  # Здесь может быть None
+                        }
+                        valid_items.append(clean_item)
 
             logger.info(f"Extracted {len(valid_items)} code-concept pairs")
             return valid_items
