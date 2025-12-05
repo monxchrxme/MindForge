@@ -180,9 +180,15 @@ class OrchestratorAgent:
                 logger.info(f"✓ HOT START: Loaded {len(cached_verified)} concepts from cache")
                 self.verified_concepts = cached_verified
 
+                for i, c in enumerate(self.verified_concepts):
+                    code_val = c.get('code_snippet')
+                    logger.debug(f"Concept {i} code_snippet: {type(code_val)} - {str(code_val)}...")
+
+
                 # Если хотя бы один концепт содержит код, считаем это code_practice
                 has_code = any(c.get('code_snippet') for c in self.verified_concepts)
                 current_strategy = "code_practice" if has_code else "standard"
+
                 logger.info(f"ℹ️ Strategy aligned with cache data: {current_strategy}")
 
             else:
@@ -258,6 +264,7 @@ class OrchestratorAgent:
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
                 avoid_history=history_to_use,
+                raw_text=note_text,
                 mode=current_strategy
             )
 

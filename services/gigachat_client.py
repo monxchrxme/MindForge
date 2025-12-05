@@ -111,17 +111,6 @@ class GigaChatClient:
         """
         Запрос к GigaChat с ожиданием JSON-ответа.
         Автоматически парсит ответ и возвращает Python-объект (dict/list).
-
-        Args:
-            prompt: Текст промпта (должен содержать инструкцию возврата JSON)
-            retry_attempts: Количество попыток при ошибке парсинга
-
-        Returns:
-            Union[Dict, List[Dict]]: Распарсенный JSON-объект
-
-        Raises:
-            ValueError: Если не удалось распарсить JSON после всех попыток
-            Exception: При ошибках API
         """
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty")
@@ -132,35 +121,109 @@ class GigaChatClient:
             try:
                 logger.debug(f"Generating JSON response (attempt {attempt}/{retry_attempts})")
 
-                # Получение сырого текста
+                # 1. Получение сырого текста
                 raw_response = self.generate(prompt)
 
-                # Парсинг JSON из ответа
+                # ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
+                logger.info(f"--- RAW RESPONSE (Attempt {attempt}) ---")
+                logger.info(raw_response)
+                logger.info("----------------------------------------")
+
+                # 2. Парсинг
                 parsed_json = self._parse_json_from_text(raw_response)
 
                 logger.debug(f"JSON parsing successful on attempt {attempt}")
-
                 return parsed_json
 
             except json.JSONDecodeError as e:
                 last_error = e
-                logger.warning(
-                    f"JSON parsing failed on attempt {attempt}: {str(e)}\n"
-                    f"Raw response preview: {raw_response[:200]}..."
-                )
-
-                # Добавляем уточнение в промпт для следующей попытки
+                logger.warning(f"JSON parsing failed on attempt {attempt}: {e}")
+                # Добавляем инструкцию для исправления
                 if attempt < retry_attempts:
                     prompt = self._enhance_json_prompt(prompt)
-
             except Exception as e:
-                logger.error(f"Unexpected error in generate_json(): {str(e)}")
+                logger.error(f"Unexpected error in generate_json: {e}")
                 raise
 
-        # Если все попытки провалились
-        error_msg = f"Failed to parse JSON after {retry_attempts} attempts. Last error: {str(last_error)}"
+        # Если все попытки исчерпаны
+        error_msg = f"Failed to parse JSON after {retry_attempts} attempts. Last error: {last_error}"
         logger.error(error_msg)
         raise ValueError(error_msg)
+
+    def _parse_json_from_text(self, text: str) -> Union[Dict, List[Dict]]:
+        """
+        Устойчивый парсинг JSON из грязного ответа LLM.
+        """
+        if not text:
+            raise json.JSONDecodeError("Empty string", "", 0)
+
+        # 1. Очистка от Markdown (``````)
+        cleaned = text.strip()
+        # Ищем блок кода `````` (жадный поиск, берем содержимое)
+        match = re.search(r"``````", cleaned, re.DOTALL | re.IGNORECASE)
+        if match:
+            cleaned = match.group(1).strip()
+
+        # 2. Очистка от комментариев (// и /* */)
+        # Осторожно: это может удалить ссылки http://, но для JSON структур это редкость
+        # Используем более безопасную регулярку, которая не трогает строки внутри кавычек - сложно.
+        # Проще: удаляем только комментарии в начале строк или явные блоки
+        cleaned = re.sub(r'^\s*//.*$', '', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
+
+        # 3. Очистка от невидимых символов и BOM
+        # Удаляем BOM (Byte Order Mark)
+        cleaned = cleaned.replace('\ufeff', '')
+        # Заменяем неразрывные пробелы
+        cleaned = cleaned.replace('\u00a0', ' ')
+
+        # 4. Экранирование управляющих символов, которые часто забывает LLM
+        # В JSON внутри строк запрещены реальные табы и переносы.
+        # Но мы не можем просто сделать replace('\t', '\\t') глобально, так как это может быть
+        # форматирование самого JSON (отступы), а не значение внутри строки.
+        # Однако, json.loads(strict=False) обычно справляется с табами-отступами.
+
+        # Попытка 1: Стандартный парсинг
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        # Попытка 2: Разрешаем управляющие символы (strict=False)
+        try:
+            return json.loads(cleaned, strict=False)
+        except json.JSONDecodeError:
+            pass
+
+        # Попытка 3: Поиск JSON-подобной структуры (если есть лишний текст вокруг)
+        # Ищем от первой { или [ до последней } или ]
+        try:
+            match = re.search(r'(\{.*\}|\[.*\])', cleaned, re.DOTALL)
+            if match:
+                potential_json = match.group(0)
+                return json.loads(potential_json, strict=False)
+        except json.JSONDecodeError:
+            pass
+
+        # Попытка 4 (Крайняя мера): Замена Python-style значений на JSON
+        # Иногда модель пишет None вместо null, True вместо true
+        try:
+            replacements = {
+                'None': 'null',
+                'True': 'true',
+                'False': 'false',
+                "'": '"',  # Замена одинарных кавычек на двойные (опасно, но иногда нужно)
+            }
+            fixed_text = cleaned
+            # Аккуратно меняем только литералы (не внутри слов) - упрощенно
+            for k, v in replacements.items():
+                fixed_text = fixed_text.replace(k, v)
+
+            return json.loads(fixed_text, strict=False)
+        except json.JSONDecodeError as e:
+            # Если ничего не помогло, выбрасываем оригинальную ошибку
+            # чтобы видеть, что именно не так
+            raise e
 
     def get_usage_stats(self) -> Dict[str, int]:
         """
@@ -226,49 +289,6 @@ class GigaChatClient:
             f"| Total Session: {global_total}"
         )
 
-
-    def _parse_json_from_text(self, text: str) -> Union[Dict, List[Dict]]:
-        """
-        Извлечение и парсинг JSON из текста.
-        Модель может вернуть JSON в Markdown блоках (``````) или с комментариями.
-
-        Args:
-            text: Сырой текст ответа от модели
-
-        Returns:
-            Распарсенный JSON объект
-
-        Raises:
-            json.JSONDecodeError: Если JSON невалиден
-        """
-        # Удаление возможных Markdown блоков
-        cleaned_text = text.strip()
-
-        # Паттерн для извлечения JSON из markdown блока
-        json_block_pattern = r'``````'
-        json_match = re.search(json_block_pattern, cleaned_text)
-
-        if json_match:
-            cleaned_text = json_match.group(1).strip()
-            logger.debug("Extracted JSON from markdown block")
-
-        # Удаление возможных комментариев (// ... или /* ... */)
-        cleaned_text = re.sub(r'//.*$', '', cleaned_text, flags=re.MULTILINE)
-        cleaned_text = re.sub(r'/\*.*?\*/', '', cleaned_text, flags=re.DOTALL)
-
-        # Попытка парсинга
-        try:
-            parsed = json.loads(cleaned_text)
-            return parsed
-        except json.JSONDecodeError:
-            # Попытка найти JSON в тексте по фигурным/квадратным скобкам
-            json_pattern = r'(\{[\s\S]*\}|\[[\s\S]*\])'
-            potential_json = re.search(json_pattern, cleaned_text)
-
-            if potential_json:
-                return json.loads(potential_json.group(1))
-            else:
-                raise
 
     def _enhance_json_prompt(self, original_prompt: str) -> str:
         """
