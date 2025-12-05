@@ -258,7 +258,7 @@ class OrchestratorAgent:
             self.current_quiz = self.quiz_generator.generate_questions(
                 concepts=self.verified_concepts,
                 avoid_history=history_to_use,
-                mode=analysis.recommended_strategy
+                mode=current_strategy
             )
 
             self._log_data_transfer("QuizAgent", "Orchestrator", self.current_quiz, "generated_quiz")
