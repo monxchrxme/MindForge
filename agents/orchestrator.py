@@ -155,7 +155,7 @@ class OrchestratorAgent:
                 cached_data = self.cache_manager.load(verified_cache_key)
 
                 # 🛠️ ОБРАБОТКА НОВОГО И СТАРОГО ФОРМАТА КЭША
-                if isinstance(cached_data, dict) and "metadata" in cached_:
+                if isinstance(cached_data, dict) and "metadata" in cached_data:
                     # Новый формат: есть метаданные
                     logger.info("✓ Detected V2 Cache format (with metadata)")
                     self.verified_concepts = cached_data.get("concepts", [])
