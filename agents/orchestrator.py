@@ -94,6 +94,7 @@ class OrchestratorAgent:
         # Состояние сессии
         self.current_note_hash: str = ""
         self.verified_concepts: List[Dict] = []
+        self.corrections_report: List[Dict] = []
         self.current_quiz: List[Dict] = []
         self.quiz_history: List[str] = []
 
@@ -229,9 +230,35 @@ class OrchestratorAgent:
                 # Но для direct_quiz нам концепты не нужны, поэтому проверок extracted тут не делаем.
 
                 # 5.3 Фактчек (только если есть что проверять)
+                corrections_report = []
+
                 if extracted and self.factcheck_enabled:
                     logger.info("\n>>> CALLING FactCheckAgent.verify_concepts()")
-                    self.verified_concepts = self.fact_checker.verify_concepts(extracted)
+
+                    # Вызываем агент (он вернет concepts и report)
+                    self.verified_concepts, self.corrections_report = self.fact_checker.verify_concepts(extracted)
+
+                    # === ЛОГИРОВАНИЕ ИСПРАВЛЕНИЙ ===
+                    if self.corrections_report:
+                        logger.warning(f"⚠️  FACTCHECK FOUND {len(self.corrections_report)} ISSUES:")
+                        logger.warning("-" * 60)
+                        for issue in self.corrections_report:
+                            term = issue.get('term', 'Unknown')
+                            msg = issue.get('message', '')
+
+                            if issue['type'] == 'definition_fix':
+                                old = issue.get('original', '').replace('\n', ' ')
+                                new = issue.get('fixed', '').replace('\n', ' ') #TODO здесь добавить оброезку до 100
+                                logger.warning(f"📝 FIX [{term}]: {msg}")
+                                logger.warning(f"    WAS: {old}...")
+                                logger.warning(f"    NOW: {new}...")
+
+                            elif issue['type'] == 'code_mismatch':
+                                logger.warning(f"✂️ CODE REMOVED [{term}]: {msg}")
+
+                            logger.warning("-" * 60)
+                    else:
+                        logger.info("✅ FactCheck passed: No issues found.")
                 else:
                     self.verified_concepts = extracted
 
@@ -286,6 +313,7 @@ class OrchestratorAgent:
                 "status": "success",
                 "quiz": self.current_quiz,
                 "concepts_count": len(self.verified_concepts),
+                "factcheck_report": self.corrections_report,
                 "message": f"Квиз готов! Концептов: {len(self.verified_concepts)}, "
                            f"вопросов: {len(self.current_quiz)} ({cache_status})"
             }
@@ -525,6 +553,7 @@ class OrchestratorAgent:
         logger.info("Resetting session state...")
         self.current_note_hash = ""
         self.verified_concepts = []
+        self.corrections_report: List[Dict] = []
         self.current_quiz = []
         # self.quiz_history.clear()
         self.user_score = 0
