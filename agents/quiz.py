@@ -385,7 +385,6 @@ class QuizAgent:
             logger.warning("[VALIDATION] Empty question text")
             return False
 
-        # Нормализация и проверка длины
         q["question"] = str(q["question"]).strip()
         if len(q["question"]) > 300:
             logger.warning(f"[VALIDATION] Question too long ({len(q['question'])} chars), truncating")
@@ -394,12 +393,13 @@ class QuizAgent:
         # 2. Авто-коррекция типа вопроса
         raw_type = str(q.get("type", "")).lower().strip()
 
-        if raw_type in ["single_choice", "multi_choice", "choice", "multiple_choice"]:
+        # Нормализация всех вариантов написания
+        if raw_type in ["single_choice", "multi_choice", "choice", "multiple_choice", "multiplechoice"]:
             q["type"] = "multiple_choice"
-        elif raw_type in ["boolean", "bool", "yes_no", "true-false"]:
+        elif raw_type in ["boolean", "bool", "yes_no", "true_false", "true-false", "truefalse", "tf"]:
             q["type"] = "true_false"
         else:
-            logger.warning(f"[VALIDATION] Unknown type: '{raw_type}'")
+            logger.warning(f"[VALIDATION] Unknown type: '{raw_type}' (original: {q.get('type')})")
             return False
 
         # 3. Нормализация related_concept
@@ -413,26 +413,30 @@ class QuizAgent:
                 logger.warning(f"[VALIDATION] options must be a list, got {type(options).__name__}")
                 return False
 
-            # Проверка наличия correct_answer
             if "correct_answer" not in q or q["correct_answer"] is None:
                 logger.warning("[VALIDATION] Missing 'correct_answer' field")
                 return False
 
-            # Нормализация опций (строки, без пустых)
+            # Нормализация опций
             q["options"] = [
                 str(opt).strip()
                 for opt in options
                 if opt is not None and str(opt).strip()
             ]
 
-            # Дедупликация опций
-            original_count = len(q["options"])
-            q["options"] = list(dict.fromkeys(q["options"]))  # Убирает дубли, сохраняет порядок
+            # Дедупликация с сохранением регистра
+            seen_lower = {}
+            unique_options = []
+            for opt in q["options"]:
+                opt_lower = opt.lower()
+                if opt_lower not in seen_lower:
+                    seen_lower[opt_lower] = opt
+                    unique_options.append(opt)
 
-            if len(q["options"]) != original_count:
-                logger.debug(f"[VALIDATION] Removed {original_count - len(q['options'])} duplicate options")
+            if len(unique_options) != len(q["options"]):
+                logger.debug(f"[VALIDATION] Removed {len(q['options']) - len(unique_options)} duplicate options")
+                q["options"] = unique_options
 
-            # Проверка минимального количества
             if len(q["options"]) < 2:
                 logger.warning(f"[VALIDATION] Not enough unique options: {q['options']}")
                 return False
@@ -444,16 +448,23 @@ class QuizAgent:
                 logger.warning("[VALIDATION] Empty correct_answer")
                 return False
 
-            if q["correct_answer"] not in q["options"]:
+            # РЕГИСТРОНЕЗАВИСИМОЕ сравнение
+            answer_lower = q["correct_answer"].lower()
+            options_lower = [opt.lower() for opt in q["options"]]
+
+            if answer_lower not in options_lower:
                 logger.warning(
                     f"[VALIDATION] correct_answer '{q['correct_answer']}' "
                     f"not in options {q['options']}"
                 )
                 return False
 
+            # Приводим correct_answer к регистру из options
+            matching_index = options_lower.index(answer_lower)
+            q["correct_answer"] = q["options"][matching_index]
+
         # 5. Валидация true_false
         elif q["type"] == "true_false":
-            # Проверка наличия correct_answer
             if "correct_answer" not in q or q["correct_answer"] is None:
                 logger.warning("[VALIDATION] Missing 'correct_answer' field")
                 return False
@@ -461,15 +472,14 @@ class QuizAgent:
             # Нормализация ответа
             ans_str = str(q["correct_answer"]).lower().strip()
 
-            if ans_str in ["true", "1", "yes", "верно", "да"]:
+            if ans_str in ["true", "1", "yes", "верно", "да", "истина"]:
                 q["correct_answer"] = "True"
-            elif ans_str in ["false", "0", "no", "неверно", "нет"]:
+            elif ans_str in ["false", "0", "no", "неверно", "нет", "ложь"]:
                 q["correct_answer"] = "False"
             else:
                 logger.warning(f"[VALIDATION] Invalid bool answer: '{ans_str}'")
                 return False
 
-            # Принудительно ставим опции
             q["options"] = ["True", "False"]
 
         return True
