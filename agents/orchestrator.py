@@ -120,16 +120,8 @@ class OrchestratorAgent:
     ) -> Dict[str, Any]:
         """
         Полный пайплайн обработки заметки с детальным логированием.
-
-        Args:
-            note_text: Текст учебной заметки
-            questions_count: Количество вопросов (опционально)
-            difficulty: Сложность вопросов (опционально)
-            force_reparse: Игнорировать кэш и выполнить полный парсинг
-
-        Returns:
-            Dict с результатом генерации квиза
         """
+
         logger.info("\n" + "=" * 70)
         logger.info("ORCHESTRATOR: process_note_pipeline() STARTED")
         logger.info("=" * 70)
@@ -147,125 +139,130 @@ class OrchestratorAgent:
             logger.info(f"Note hash computed: {self.current_note_hash}")
 
             if questions_count or difficulty:
-                logger.info(f"Updating quiz settings (count={questions_count}, difficulty={difficulty})")
                 self._update_quiz_settings(questions_count, difficulty)
 
-            # 2. Анализ контента
-            analysis = self._analyze_content(note_text)
-
-            # Логирование анализа (с фиксом Enum для JSON)
-            analysis_log = analysis.__dict__.copy()
-            analysis_log["content_type"] = str(analysis.content_type.value)
-            self._log_data_transfer("Orchestrator", "Self", analysis_log, "analysis_result")
-
-            # 3. Фильтр мусора
-            if analysis.content_type == ContentType.UNKNOWN and len(note_text) < 50:
-                return {"status": "error", "message": "Текст слишком короткий."}
-            elif analysis.content_type == ContentType.GARBAGE:
-                return {"status": "error", "message": "Текст неинформативный."}
-
-            # 4. Работа с кэшем концептов
+            # 2. Проверка кэша (HOT START CHECK)
             verified_cache_key = f"verified_{self.current_note_hash}"
-            cached_verified = None
+            cached_data = None  # Переименовали переменную для ясности
+
+            # Переменные, которые должны быть определены в любой ветке
+            analysis = None
+            current_strategy = "standard"
 
             if not force_reparse and self.cache_manager.exists(verified_cache_key):
-                logger.info("✓ Verified cache found, loading...")
-                cached_verified = self.cache_manager.load(verified_cache_key)
+                # === ВЕТКА: КЭШ ЕСТЬ ===
+                logger.info(f"✓ Verified cache found ({verified_cache_key}), loading data...")
+                cached_data = self.cache_manager.load(verified_cache_key)
 
-            # 5. Определение стратегии и данных
+                # 🛠️ ОБРАБОТКА НОВОГО И СТАРОГО ФОРМАТА КЭША
+                if isinstance(cached_data, dict) and "metadata" in cached_
+                    # Новый формат: есть метаданные
+                    logger.info("✓ Detected V2 Cache format (with metadata)")
+                    self.verified_concepts = cached_data.get("concepts", [])
+                    metadata = cached_data.get("metadata", {})
 
-            current_strategy = analysis.recommended_strategy  # Значение по умолчанию
+                    # Восстанавливаем стратегию и анализ из метаданных
+                    current_strategy = metadata.get("strategy", "standard")
+                    saved_complexity = metadata.get("complexity", "medium")
+                    saved_type_str = metadata.get("content_type", "theory")
 
-            # Если есть кэш и не нужен репарсинг -> используем кэш
-            if cached_verified and not force_reparse:
-                logger.info(f"✓ HOT START: Loaded {len(cached_verified)} concepts from cache")
-                self.verified_concepts = cached_verified
+                    try:
+                        saved_type = ContentType(saved_type_str)
+                    except ValueError:
+                        saved_type = ContentType.THEORY
 
-                for i, c in enumerate(self.verified_concepts):
-                    code_val = c.get('code_snippet')
-                    logger.debug(f"Concept {i} code_snippet: {type(code_val)} - {str(code_val)}...")
+                    # Восстанавливаем объект анализа
+                    analysis = NoteAnalysis(
+                        content_type=saved_type,
+                        summary=metadata.get("summary", "Loaded from cache"),
+                        complexity=saved_complexity,
+                        recommended_strategy=current_strategy
+                    )
+                    logger.info(f"✓ Metadata restored: Type={saved_type.value}, Complexity={saved_complexity}")
 
+                else:
+                    # Старый формат: просто список концептов (Legacy support)
+                    logger.info("⚠️ Detected V1 Cache format (list only). Guessing metadata...")
+                    self.verified_concepts = cached_data if isinstance(cached_data, list) else []
 
-                # Если хотя бы один концепт содержит код, считаем это code_practice
-                has_code = any(c.get('code_snippet') for c in self.verified_concepts)
-                current_strategy = "code_practice" if has_code else "standard"
+                    # Пытаемся угадать, как раньше
+                    has_code = any(c.get('code_snippet') for c in self.verified_concepts)
+                    current_strategy = "code_practice" if has_code else "standard"
 
-                logger.info(f"ℹ️ Strategy aligned with cache data: {current_strategy}")
+                    # Создаем синтетический анализ
+                    analysis = NoteAnalysis(
+                        content_type=ContentType.CODE if has_code else ContentType.THEORY,
+                        summary="Legacy cache load",
+                        complexity="medium",  # Дефолт
+                        recommended_strategy=current_strategy
+                    )
+
+                logger.info(
+                    f"✓ HOT START: Ready with {len(self.verified_concepts)} concepts. Strategy: {current_strategy}")
 
             else:
-                # === ХОЛОДНЫЙ СТАРТ (Генерация с нуля) ===
-                logger.info("\n" + "-" * 70)
-                logger.info(f"COLD START: Running full analysis pipeline (Strategy: {current_strategy})")
-                logger.info("-" * 70)
+                # === ВЕТКА: ХОЛОДНЫЙ СТАРТ (Анализ + Парсинг) ===
+
+                # 2.1 Анализ контента (LLM)
+                analysis = self._analyze_content(note_text)
+
+                # Логирование...
+                analysis_log = analysis.__dict__.copy()
+                analysis_log["content_type"] = str(analysis.content_type.value)
+                self._log_data_transfer("Orchestrator", "Self", analysis_log, "analysis_result")
+
+                # 2.2 Фильтр мусора
+                if analysis.content_type == ContentType.UNKNOWN and len(note_text) < 50:
+                    return {"status": "error", "message": "Текст слишком короткий."}
+                elif analysis.content_type == ContentType.GARBAGE:
+                    return {"status": "error", "message": "Текст неинформативный."}
+
+                current_strategy = analysis.recommended_strategy
+
+                logger.info(f"COLD START: Running pipeline (Strategy: {current_strategy})")
 
                 extracted = []
 
                 # 5.1 Выполнение стратегии (Парсинг)
                 try:
                     if current_strategy == "direct_quiz":
-                        logger.info("🚀 STRATEGY: Direct Quiz (skipping parser)")
-                        extracted = []  # Парсинг не нужен
+                        extracted = []
                     elif current_strategy == "code_practice":
-                        logger.info("💻 STRATEGY: Code Practice")
                         extracted = self.parser.parse_code_note(note_text)
                     else:  # standard
-                        logger.info("📚 STRATEGY: Standard Pipeline")
-                        self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
                         extracted = self.parser.parse_note(note_text)
                 except Exception as e:
                     logger.error(f"Parsing failed: {e}")
                     extracted = []
 
-                # 5.2 Логика Fallback (Самокоррекция)
-
+                # 5.2 Логика Fallback
                 if not extracted and current_strategy != "direct_quiz":
-                    logger.warning(
-                        f"⚠️ Strategy '{current_strategy}' returned 0 concepts. Switching to Fallback: DIRECT_QUIZ."
-                    )
                     current_strategy = "direct_quiz"
-                    # При переключении на direct мы не считаем это ошибкой, просто идем дальше без концептов
 
-                # Если даже для Direct Quiz что-то пошло не так (хотя тут сложно ошибиться),
-                # или если мы не хотим фоллбек — вот тут можно вернуть ошибку.
-                # Но для direct_quiz нам концепты не нужны, поэтому проверок extracted тут не делаем.
-
-                # 5.3 Фактчек (только если есть что проверять)
-                corrections_report = []
-
+                # 5.3 Фактчек
                 if extracted and self.factcheck_enabled:
-                    logger.info("\n>>> CALLING FactCheckAgent.verify_concepts()")
-
-                    # Вызываем агент (он вернет concepts и report)
                     self.verified_concepts, self.corrections_report = self.fact_checker.verify_concepts(extracted)
-
-                    # === ЛОГИРОВАНИЕ ИСПРАВЛЕНИЙ ===
-                    if self.corrections_report:
-                        logger.warning(f"⚠️  FACTCHECK FOUND {len(self.corrections_report)} ISSUES:")
-                        logger.warning("-" * 60)
-                        for issue in self.corrections_report:
-                            term = issue.get('term', 'Unknown')
-                            msg = issue.get('message', '')
-
-                            if issue['type'] == 'definition_fix':
-                                old = issue.get('original', '').replace('\n', ' ')
-                                new = issue.get('fixed', '').replace('\n', ' ') #TODO здесь добавить оброезку до 100
-                                logger.warning(f"📝 FIX [{term}]: {msg}")
-                                logger.warning(f"    WAS: {old}...")
-                                logger.warning(f"    NOW: {new}...")
-
-                            elif issue['type'] == 'code_mismatch':
-                                logger.warning(f"✂️ CODE REMOVED [{term}]: {msg}")
-
-                            logger.warning("-" * 60)
-                    else:
-                        logger.info("✅ FactCheck passed: No issues found.")
                 else:
                     self.verified_concepts = extracted
 
-                # 5.4 Сохранение в кэш (только если нашли концепты)
+                # 🛠️ 5.4 СОХРАНЕНИЕ В КЭШ (НОВЫЙ ФОРМАТ)
                 if self.verified_concepts:
-                    logger.info(f"Saving {len(self.verified_concepts)} concepts to cache...")
-                    self.cache_manager.save(verified_cache_key, self.verified_concepts)
+                    logger.info(f"Saving {len(self.verified_concepts)} concepts to cache (V2 Format)...")
+
+                    # Формируем объект для кэша
+                    cache_payload = {
+                        "metadata": {
+                            "version": "2.0",
+                            "content_type": analysis.content_type.value,  # Enum -> str
+                            "complexity": analysis.complexity,
+                            "strategy": current_strategy,
+                            "summary": analysis.summary,
+                            "timestamp_hash": self.current_note_hash
+                        },
+                        "concepts": self.verified_concepts
+                    }
+
+                    self.cache_manager.save(verified_cache_key, cache_payload)
 
             # === ГЕНЕРАЦИЯ КВИЗА ===
             logger.info("\n" + "-" * 70)
