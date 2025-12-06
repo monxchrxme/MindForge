@@ -56,12 +56,12 @@ class QuizAgent:
 
     def _generate_code_quiz(self, concepts: List[Dict], history: List[str]) -> List[Dict]:
         logger.info("💻 STRATEGY EXECUTION: Code Practice")
-        prompt = self._code_questions_prompt(concepts, history)
+        prompt = self._code_prompt(concepts, history)
         return self._execute_pipeline(prompt, concepts, history)
 
     def _generate_standard_quiz(self, concepts: List[Dict], history: List[str]) -> List[Dict]:
         logger.info("📚 STRATEGY EXECUTION: Standard Quiz")
-        prompt = self._questions_prompt(concepts, history)
+        prompt = self._standard_prompt(concepts, history)
         return self._execute_pipeline(prompt, concepts, history)
 
     def _execute_pipeline(
@@ -103,18 +103,23 @@ class QuizAgent:
             avoid_part = "НЕ создавай вопросы, похожие на эти:\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
 
         return (
-            f"Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.\n\n"
-            f"Сгенерируй {count} уникальных вопросов..."
+            f"""
+            Ты — генератор учебных квизов. Твоя задача — составить проверочные вопросы по тексту заметки.
             
-            f"ТЕКСТ ЗАМЕТКИ:\n{text[:2000]}\n\n"  # Ограничиваем, чтобы влезло в контекст
-            f"ЗАДАЧА:\n"
-            f"Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}'.\n"
-            f"Распределение типов: ~80% multiple_choice, ~20% true_false.\n\n"
-            f"ТРЕБОВАНИЯ К КОНТЕНТУ:\n"
-            f"- Вопросы должны проверять понимание сути текста, а не мелких деталей.\n"
-            f"- Дистракторы (неверные ответы) должны быть правдоподобными.\n"
-            f"{avoid_part}\n"
-            f"{self._get_direct_quiz_format()}"
+            ТЕКСТ ЗАМЕТКИ:
+        
+            {text[:2000]}
+            
+            ЗАДАЧА:
+            Сгенерируй {count} уникальных вопросов уровня сложности '{self.difficulty}'.
+            Распределение типов: ~80% multiple_choice, ~20% true_false.
+            
+            ТРЕБОВАНИЯ К КОНТЕНТУ:
+            - Вопросы должны проверять понимание сути текста, а не мелких деталей.
+            - Дистракторы (неверные ответы) должны быть правдоподобными.
+            {avoid_part}
+            {self._get_direct_quiz_format()}
+            """
         )
 
     def _get_code_quiz_format(self) -> str:
@@ -122,23 +127,48 @@ class QuizAgent:
         Формат JSON для Code Quiz, где code_context критически важен.
         """
         return (
-            "СТРОГИЙ формат JSON (массив объектов):\n"
-            "[\n"
-            " {\n"
-            '  "question": "Что выведет этот код?",\n'
-            '  "code_context": "def func():\\n    return 42",\n'
-            '  "type": "multiple_choice",\n'
-            '  "options": ["42", "Error", "None", "0"],\n'
-            '  "correct_answer": "42",\n'
-            '  "related_concept": "Функции",\n'
-            '  "concept_definition": "..."\n'
-            " }\n"
-            "]\n"
-            "ВАЖНО: Поле 'code_context' должно содержать форматированный код с переносами строк (\\n)."
+        r"""СТРОГИЙ формат JSON (массив объектов):
+        
+        [
+          {
+            "question": "Что выведет этот код?",
+            "code_context": "def func():\n    return 42",
+            "type": "multiple_choice",
+            "options": ["42", "Error", "None", "0"],
+            "correct_answer": "42",
+            "related_concept": "Функции",
+            "concept_definition": "..."
+          }
+        ]
+        
+        ⚠️ КРИТИЧЕСКИ ВАЖНО ДЛЯ ПОЛЯ 'code_context':
+        1. Код должен быть ОДНОЙ СТРОКОЙ в JSON
+        2. Переносы строк заменяй на \n (обратный слеш + буква n)
+        3. Табуляцию заменяй на \t или 4 пробела
+        4. НЕ используй реальные переносы строк внутри строки!
+        5. НЕ используй тройные бэктики (```
+        
+        ПРИМЕРЫ ПРАВИЛЬНОГО ФОРМАТИРОВАНИЯ code_context:
+        ✅ ПРАВИЛЬНО: "code_context": "class A:\n    def method(self):\n        return 42"
+        ✅ ПРАВИЛЬНО: "code_context": "for i in range(10):\n    print(i)"
+        ✅ ПРАВИЛЬНО: "code_context": "def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n-1)"
+        
+        ❌ НЕПРАВИЛЬНО (программа упадет с ошибкой JSON!):
+        "code_context": "class A:
+            def method(self):
+                return 42"
+        
+        ОБЩИЕ ТРЕБОВАНИЯ:
+        1. Возвращай ТОЛЬКО валидный JSON-массив (начинается с [ и заканчивается ])
+        2. Не добавляй комментариев, Markdown-разметки, блоков кода (```)
+        3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'
+        4. В multiple_choice должно быть ровно 4 варианта ответа
+        5. Каждый вопрос должен быть связан с кодом из материала
+            """
         )
 
 
-    def _code_questions_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
+    def _code_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
         """
         Промпт для генерации задач по коду.
         Concepts здесь — это список словарей с ключом 'code_snippet'.
@@ -167,73 +197,58 @@ class QuizAgent:
                 context_part += f"=== КОНЦЕПТ: {term} ===\n{c.get('definition')}\n\n"
 
         return (
-            f"Ты — Senior Developer, проводящий собеседование. Сгенерируй {self.questions_count} практических задач по этому материалу.\n\n"
-            f"МАТЕРИАЛ:\n{context_part}\n\n"
-            f"ТИПЫ ВОПРОСОВ:\n"
-            f"1. Анализ кода: 'Что выведет этот код?', 'Какова сложность этого алгоритма?', 'Найди ошибку в строке 3'.\n"
-            f"2. Теория: только если к концепту не приложен код.\n\n"
+            f"""
+            Ты — Senior Developer, проводящий собеседование. Сгенерируй {self.questions_count} практических задач по этому материалу.
+            
+            МАТЕРИАЛ:
+            {context_part}
+            
+            ТИПЫ ВОПРОСОВ:
+            1. Анализ кода: 'Что выведет этот код?', 'Какова сложность этого алгоритма?', 'Найди ошибку в строке 3'.
+            2. Теория: только если к концепту не приложен код.
 
-            # Вставляем блок избегания повторов
-            f"{avoid_part}\n"
+            {avoid_part}
 
-            f"ВАЖНО: Если вопрос требует анализа кода:\n"
-            f"1. Помести сам код в поле 'code_context'.\n"
-            f"2. В поле 'question' оставь только сам вопрос (например: 'Какова сложность этого алгоритма?').\n\n"
-            f"{self._get_code_quiz_format()}"
+            ВАЖНО: Если вопрос требует анализа кода:
+            1. Помести сам код в поле 'code_context'.
+            2. В поле 'question' оставь только сам вопрос (например: 'Какова сложность этого алгоритма?').
+            {self._get_code_quiz_format()}
+            """
         )
 
-    def _get_format_instructions(self) -> str:
+    def _get_standard_quiz_format(self) -> str:
         """
         Возвращает строгие инструкции по формату JSON для промпта.
-        Используется во всех типах генерации (по концептам и по тексту).
+        Используется в генерации по концептам.
         """
-        """СТРОГИЙ формат JSON (массив объектов):
-
-                    [
-                      {{
-                        "question": "Текст вопроса (макс 180 символов)",
-                        "type": "multiple_choice",
-                        "options": ["Вариант1", "Вариант2", ...] для multiple_choice,
-                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос",
-                        "correct_answer": "Вариант1" 
-                      }},
-                      {{
-                        "question": "Текст вопроса-утверждения",
-                        "type": "true_false",
-                        "options": ["True", "False"],
-                        "related_concept": "конкретный концепт из списка концептов, на котором базируется вопрос"
-                        "correct_answer": "True"
-                      }}
-                    ]
-
-                    КРИТИЧЕСКИ ВАЖНО: 
-                    - Возвращай ТОЛЬКО JSON-массив
-                    - Без пояснений, комментариев, markdown разметки
-                    - Проверь запятые и кавычки перед отправкой"""
         return (
-            "СТРОГИЙ формат JSON (массив объектов):\n"
-            "[\n"
-            "  {\n"
-            "    \"question\": \"Текст вопроса (макс 200 символов)\",\n"
-            "    \"code_context\": \"(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.\",\n"
-            "    \"type\": \"multiple_choice\",\n"
-            "    \"options\": [\"вариант1\", \"вариант2\", \"вариант3\", \"вариант4\"],\n"
-            "    \"correct_answer\": \"вариант1\",\n"
-            "    \"related_concept\": \"тема вопроса (термин или ключевая фраза)\"\n"
-            "  },\n"
-            "  {\n"
-            "    \"question\": \"Текст утверждения\",\n"
-            "    \"type\": \"true_false\",\n"
-            "    \"options\": [\"True\", \"False\"],\n"
-            "    \"correct_answer\": \"True\",\n"
-            "    \"related_concept\": \"тема вопроса\"\n"
-            "  }\n"
-            "]\n\n"
-            "ВАЖНО:\n"
-            "1. Возвращай ТОЛЬКО валидный JSON-массив.\n"
-            "2. Не добавляй никаких комментариев, Markdown-блоков (```"
-            "3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.\n"
-            "4. В multiple_choice должно быть 4 варианта ответа."
+            """
+            СТРОГИЙ формат JSON (массив объектов):
+            [
+              {
+                "question": "Текст вопроса (макс 200 символов)",
+                "code_context": "(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.",
+                "type": "multiple_choice",
+                "options": ["вариант1", "вариант2", "вариант3", "вариант4"],
+                "correct_answer": "вариант1",
+                "related_concept": "тема вопроса (термин или ключевая фраза)"
+              },
+              {
+                "question": "Текст утверждения",
+                "code_context": "(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.",
+                "type": "true_false",
+                "options": ["True", "False"],
+                "correct_answer": "True",
+                "related_concept": "тема вопроса"
+              }
+            ]
+            ВАЖНО:
+            1. Возвращай ТОЛЬКО валидный JSON-массив.
+            2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
+            3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.
+            4. В multiple_choice должно быть 4 варианта ответа.
+            5. Поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
+            """
         )
 
 
@@ -242,26 +257,31 @@ class QuizAgent:
         Формат JSON для Direct Quiz с обязательным полем concept_definition.
         """
         return (
-            "СТРОГИЙ формат JSON (массив объектов):\n"
-            "[\n"
-            " {\n"
-            '  "question": "Текст вопроса...",\n'
-            '  "code_context": "Код или null",\n'
-            '  "type": "multiple_choice",\n'
-            '  "options": ["вариант1", ...],\n'
-            '  "correct_answer": "вариант1",\n'
-            '  "related_concept": "тема вопроса",\n'
-            '  "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."\n'
-            " }\n"
-            "]\n"
-            "ВАЖНО: Возвращай ТОЛЬКО валидный JSON-массив."
+            """
+            СТРОГИЙ формат JSON (массив объектов):
+            [
+              {
+                "question": "Текст вопроса...",
+                "code_context": "Код или null",
+                "type": "multiple_choice", 
+                "options": ["вариант1", ...],
+                "correct_answer": "вариант1",
+                "related_concept": "тема вопроса",
+                "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."
+              }
+            ]
+            ВАЖНО: 
+            1. Возвращай ТОЛЬКО валидный JSON-массив.
+            2. Не добавляй никаких комментариев, Markdown-разметки
+            3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.
+            4. В multiple_choice должно быть 4 варианта ответа.
+            5. поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
+            """
         )
 
 
 
-
-
-    def _questions_prompt(
+    def _standard_prompt(
             self,
             concepts: List[Dict[str, Any]],
             avoid_history: List[str]
@@ -301,7 +321,7 @@ class QuizAgent:
             {concept_part}
             
             Типы вопросов (80% multiple_choice, 20% true_false):
-            1. multiple_choice: 4-6 вариантов ответа
+            1. multiple_choice: 4 варианта ответа
             2. true_false: вопрос с ответом True/False
             
             Сложность:
@@ -312,14 +332,15 @@ class QuizAgent:
             - Количество шагов рассуждения (один = easy, несколько = medium/hard)      
             
             Требования:
-            - Каждый вопрос ОБЯЗАТЕЛЬНО должел быть связан с одним концептом из списка
+            - Каждый вопрос ОБЯЗАТЕЛЬНО должен быть связан с одним концептом из списка
             - Если концепт глубокий, содержащий много информации и позволяет на своей основе составить несколько нетривиальных уникальных вопросов, можно использовать его несколько раз
             - Вопросы проверяют понимание, а не запоминание
             - Дистракторы (неправильные варианты в multiple_choice) должны быть правдоподобны и не вызывать сомнений своей искусственностью
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
             - НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):
-            {avoid_part}\n
-            f"{self._get_format_instructions()}"
+            {avoid_part}
+            
+            {self._get_standard_quiz_format()}
             """
         )
 
@@ -360,59 +381,99 @@ class QuizAgent:
         Исправляет типичные ошибки LLM (типы, регистр, форматы).
         """
         # 1. Проверка текста вопроса
-        if not q.get("question"):
+        if not q.get("question") or not str(q.get("question")).strip():
             logger.warning("[VALIDATION] Empty question text")
             return False
 
-        # 2. Авто-коррекция типа вопроса
-        raw_type = q.get("type", "").lower().strip()
-        if raw_type in ["single_choice", "multi_choice", "choice"]:
-            q["type"] = "multiple_choice"
-        elif raw_type in ["boolean", "bool", "yes_no"]:
-            q["type"] = "true_false"
+        # Нормализация и проверка длины
+        q["question"] = str(q["question"]).strip()
+        if len(q["question"]) > 300:
+            logger.warning(f"[VALIDATION] Question too long ({len(q['question'])} chars), truncating")
+            q["question"] = q["question"][:297] + "..."
 
-        # 3. Проверка поддерживаемых типов
-        valid_types = ["multiple_choice", "true_false"]
-        if q["type"] not in valid_types:
-            logger.warning(f"[VALIDATION] Unknown type '{q.get('type')}' (raw: {raw_type})")
+        # 2. Авто-коррекция типа вопроса
+        raw_type = str(q.get("type", "")).lower().strip()
+
+        if raw_type in ["single_choice", "multi_choice", "choice", "multiple_choice"]:
+            q["type"] = "multiple_choice"
+        elif raw_type in ["boolean", "bool", "yes_no", "true-false"]:
+            q["type"] = "true_false"
+        else:
+            logger.warning(f"[VALIDATION] Unknown type: '{raw_type}'")
             return False
 
-        # 4. Нормализация related_concept
+        # 3. Нормализация related_concept
         if not q.get("related_concept"):
             q["related_concept"] = "General"
 
-        # 5. Валидация multiple_choice
+        # 4. Валидация multiple_choice
         if q["type"] == "multiple_choice":
             options = q.get("options", [])
-            if not isinstance(options, list) or len(options) < 2:
-                logger.warning(f"[VALIDATION] multiple_choice needs list of 2+ options. Got: {options}")
+            if not isinstance(options, list):
+                logger.warning(f"[VALIDATION] options must be a list, got {type(options).__name__}")
                 return False
 
-            # Нормализация опций и ответа (все в строки)
-            q["options"] = [str(opt).strip() for opt in options]
-            q["correct_answer"] = str(q.get("correct_answer", "")).strip()
+            # Проверка наличия correct_answer
+            if "correct_answer" not in q or q["correct_answer"] is None:
+                logger.warning("[VALIDATION] Missing 'correct_answer' field")
+                return False
+
+            # Нормализация опций (строки, без пустых)
+            q["options"] = [
+                str(opt).strip()
+                for opt in options
+                if opt is not None and str(opt).strip()
+            ]
+
+            # Дедупликация опций
+            original_count = len(q["options"])
+            q["options"] = list(dict.fromkeys(q["options"]))  # Убирает дубли, сохраняет порядок
+
+            if len(q["options"]) != original_count:
+                logger.debug(f"[VALIDATION] Removed {original_count - len(q['options'])} duplicate options")
+
+            # Проверка минимального количества
+            if len(q["options"]) < 2:
+                logger.warning(f"[VALIDATION] Not enough unique options: {q['options']}")
+                return False
+
+            # Нормализация правильного ответа
+            q["correct_answer"] = str(q["correct_answer"]).strip()
+
+            if not q["correct_answer"]:
+                logger.warning("[VALIDATION] Empty correct_answer")
+                return False
 
             if q["correct_answer"] not in q["options"]:
-                logger.warning(f"[VALIDATION] correct_answer '{q['correct_answer']}' not in options {q['options']}")
+                logger.warning(
+                    f"[VALIDATION] correct_answer '{q['correct_answer']}' "
+                    f"not in options {q['options']}"
+                )
                 return False
 
-        # 6. Валидация true_false
-        if q["type"] == "true_false":
+        # 5. Валидация true_false
+        elif q["type"] == "true_false":
+            # Проверка наличия correct_answer
+            if "correct_answer" not in q or q["correct_answer"] is None:
+                logger.warning("[VALIDATION] Missing 'correct_answer' field")
+                return False
+
             # Нормализация ответа
-            ans_str = str(q.get("correct_answer", "")).lower().strip()
+            ans_str = str(q["correct_answer"]).lower().strip()
 
             if ans_str in ["true", "1", "yes", "верно", "да"]:
                 q["correct_answer"] = "True"
             elif ans_str in ["false", "0", "no", "неверно", "нет"]:
                 q["correct_answer"] = "False"
             else:
-                logger.warning(f"[VALIDATION] Invalid bool answer: {ans_str}")
+                logger.warning(f"[VALIDATION] Invalid bool answer: '{ans_str}'")
                 return False
 
-            # Принудительно ставим красивые опции
+            # Принудительно ставим опции
             q["options"] = ["True", "False"]
 
         return True
+
 
     def _validate_unique(
             self,
@@ -444,26 +505,71 @@ class QuizAgent:
 
         return unique
 
+
+
     def _post_process_questions(
             self,
             questions: List[Dict[str, Any]],
             concepts: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        concept_lookup = {c["term"]: c["definition"] for c in concepts}
+        """
+        Добавляет UUID и concept_definition к каждому вопросу.
 
-        for q in questions:
+        Для direct_quiz режима: LLM сам генерирует concept_definition.
+        Для standard/code режимов: извлекается из списка концептов.
+
+        Поиск концептов регистронезависимый.
+        """
+
+        # Создаем регистронезависимый lookup
+        concept_lookup = {}
+        if concepts:
+            for c in concepts:
+                term = c.get("term", "").strip()
+                if not term:
+                    continue
+
+                term_lower = term.lower()
+
+                # Предупреждение о дубликатах (редкий случай)
+                if term_lower in concept_lookup:
+                    logger.debug(
+                        f"[POST-PROCESS] Duplicate concept '{term}', keeping first definition"
+                    )
+                else:
+                    concept_lookup[term_lower] = c.get("definition", "")
+
+        for idx, q in enumerate(questions, 1):
+            # 1. Генерация уникального ID
             q["question_id"] = str(uuid.uuid4())
 
-            # Нормализация полей (чтобы не было KeyError)
-            q["code_context"] = q.get("code_context")  # None если нет
+            # 2. Нормализация code_context (может быть None/null)
+            q["code_context"] = q.get("code_context")
 
-            # Логика определений
+            # 3. Обработка concept_definition
             if q.get("concept_definition"):
-                # Если LLM сама дала определение (Direct Mode) - оставляем
+                # Direct Mode: LLM уже вернул определение
                 pass
             else:
-                # Иначе ищем в базе концептов (Standard/Code Mode)
-                related = q.get("related_concept", "")
-                q["concept_definition"] = concept_lookup.get(related, "")
+                # Standard/Code Mode: ищем в концептах
+                related = q.get("related_concept", "").strip()
+
+                if not related:
+                    q["concept_definition"] = ""
+                    logger.warning(
+                        f"[POST-PROCESS] Question #{idx} has empty 'related_concept'"
+                    )
+                else:
+                    # Регистронезависимый поиск
+                    definition = concept_lookup.get(related.lower(), "")
+                    q["concept_definition"] = definition
+
+                    # Логирование только если не нашли и есть концепты
+                    if not definition and concepts:
+                        available = list(concept_lookup.keys())[:5]  # Первые 5 для краткости
+                        logger.warning(
+                            f"[POST-PROCESS] Question #{idx}: concept '{related}' not found. "
+                            f"Available: {available}..."
+                        )
 
         return questions
