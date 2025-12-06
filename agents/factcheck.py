@@ -1,3 +1,4 @@
+
 #TODO Добавить factcheck для кода
 import logging
 from typing import List, Dict
@@ -155,4 +156,3 @@ class FactCheckAgent:
 - НЕ возвращай поле 'code_snippet' в JSON.
 """
         return prompt
-
