@@ -155,7 +155,7 @@ class OrchestratorAgent:
                 cached_data = self.cache_manager.load(verified_cache_key)
 
                 # 🛠️ ОБРАБОТКА НОВОГО И СТАРОГО ФОРМАТА КЭША
-                if isinstance(cached_data, dict) and "metadata" in cached_
+                if isinstance(cached_data, dict) and "metadata" in cached_:
                     # Новый формат: есть метаданные
                     logger.info("✓ Detected V2 Cache format (with metadata)")
                     self.verified_concepts = cached_data.get("concepts", [])
@@ -226,10 +226,22 @@ class OrchestratorAgent:
                 # 5.1 Выполнение стратегии (Парсинг)
                 try:
                     if current_strategy == "direct_quiz":
-                        extracted = []
+                        logger.info("─" * 60)
+                        logger.info("│ 🚀 STARTING DIRECT QUIZ (NO PARSING)                       │")
+                        logger.info("─" * 60)
+                        extracted = []  # Парсинг не нужен
+
                     elif current_strategy == "code_practice":
+                        logger.info("─" * 60)
+                        logger.info("│ 💻 STARTING PARSER AGENT (CODE MODE)                       │")
+                        logger.info("─" * 60)
                         extracted = self.parser.parse_code_note(note_text)
                     else:  # standard
+                        logger.info("─" * 60)
+                        logger.info("│ 📚 STARTING PARSER AGENT (STANDARD MODE)                   │")
+                        logger.info("─" * 60)
+
+                        self._log_data_transfer("Orchestrator", "ParserAgent", note_text, "note_text")
                         extracted = self.parser.parse_note(note_text)
                 except Exception as e:
                     logger.error(f"Parsing failed: {e}")
@@ -241,7 +253,24 @@ class OrchestratorAgent:
 
                 # 5.3 Фактчек
                 if extracted and self.factcheck_enabled:
+                    logger.info("─" * 60)
+                    logger.info("│ 🕵️  STARTING FACTCHECK AGENT                                │")
+                    logger.info("─" * 60)
+                    logger.info(f" >>> Verifying {len(extracted)} concepts...")
+
                     self.verified_concepts, self.corrections_report = self.fact_checker.verify_concepts(extracted)
+
+                    # Красивый вывод отчета
+                    if self.corrections_report:
+                        logger.warning("\n" + "!" * 60)
+                        logger.warning(f"⚠️  FACTCHECK REPORT: Found {len(self.corrections_report)} issues")
+                        for i, issue in enumerate(self.corrections_report, 1):
+                            term = issue.get('term', 'Unknown')
+                            msg = issue.get('message', '')
+                            logger.warning(f"   {i}. [{term}] -> {msg}")
+                        logger.warning("!" * 60 + "\n")
+                    else:
+                        logger.info(" ✅ FactCheck passed: No issues found.\n")
                 else:
                     self.verified_concepts = extracted
 
@@ -304,7 +333,7 @@ class OrchestratorAgent:
             logger.info(f"✓ Received {len(self.current_quiz)} questions from QuizAgent")
             self._update_history(self.current_quiz)
 
-            cache_status = "из кэша" if (cached_verified and not force_reparse) else "новый анализ"
+            cache_status = "из кэша" if (cached_data and not force_reparse) else "новый анализ"
 
             result = {
                 "status": "success",
