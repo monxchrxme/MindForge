@@ -1,73 +1,81 @@
-# main.py
-
 """
-Точка входа в приложение «Генератор Умных Квизов» (MVP).
+CLI Точка входа в приложение «Генератор Умных Квизов».
 
-Основной workflow:
-    1. Загрузка конфигурации и секретов
-    2. Инициализация сервисов (GigaChatClient, CacheManager)
-    3. Создание OrchestratorAgent
-    4. Запуск интерактивного CLI интерфейса
-    5. Обработка команд пользователя
+Интеллектуальная система для генерации образовательных тестов из заметок
+с использованием LLM GigaChat.
 
-Архитектура:
-    - Stateless агенты выполняют специализированные задачи
-    - OrchestratorAgent координирует работу и хранит состояние сессии
-    - CacheManager экономит токены через файловый кэш
-    - Все взаимодействие с LLM через GigaChatClient
+Запуск:
+    python main.py [FILE] [OPTIONS]
+
+Аргументы:
+    FILE                    Путь к текстовому файлу с заметкой (обязательно)
+
+Опции генерации:
+    -d, --difficulty LEVEL  Сложность вопросов (easy, medium, hard) [default: medium]
+    -q, --questions N       Количество вопросов для генерации
+    -m, --model NAME        Модель GigaChat (например: GigaChat-Pro, GigaChat-Max)
+
+Опции управления состоянием:
+    -f, --force             Принудительный перепарсинг текста (игнорировать кэш концептов)
+    --ignore-history        Игнорировать историю прошлых вопросов (разрешить дубликаты)
+
+Системные опции:
+    --debug                 Включить подробное логирование (DEBUG level)
+    -h, --help              Показать это справочное сообщение
+
+Примеры:
+    # Базовый запуск
+    python main.py lectures/history.txt
+
+    # Сложный квиз из 10 вопросов на модели Pro
+    python main.py note.txt -d hard -q 10 -m GigaChat-Pro
+
+    # Тестовый прогон: игнорировать кэш и историю
+    python main.py note.txt --force --ignore-history
 """
 
+
+import argparse
 import json
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
-
 from dotenv import load_dotenv
 
-# Импорты из нашей архитектуры
 from agents import OrchestratorAgent
-from services import GigaChatClient, CacheManager
-from utils import compute_short_hash
+from services import CacheManager
+
 
 
 # ============================================================================
 # НАСТРОЙКА ЛОГИРОВАНИЯ
 # ============================================================================
 
-def setup_logging(config: dict) -> None:
+def setup_logging(debug_mode: bool = False):
     """
-    Настройка системы логирования согласно config.json.
+    Настройка системы логирования.
 
     Args:
-        config: Конфигурация из config.json
+        debug_mode: Если True - уровень DEBUG, иначе INFO
     """
-    log_config = config.get('logging', {})
-    log_level = log_config.get('level', 'INFO')
-    log_file = log_config.get('file', 'data/logs/app.log')
-    log_format = log_config.get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    level = logging.DEBUG if debug_mode else logging.INFO
+    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
-    # Создание директории для логов
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    # Создаем директорию для логов
+    Path("data/logs").mkdir(parents=True, exist_ok=True)
 
-    # Настройка корневого логгера
     logging.basicConfig(
-        level=getattr(logging, log_level.upper()),
-        format=log_format,
+        level=level,
+        format=format_str,
         handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.FileHandler("data/logs/app.log", encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
-
-    logger = logging.getLogger(__name__)
-    logger.info("=" * 70)
-    logger.info("Logging system initialized")
-    logger.info(f"Log level: {log_level}")
-    logger.info(f"Log file: {log_file}")
-    logger.info("=" * 70)
+    # Убираем лишний шум от библиотек
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 # ============================================================================
@@ -75,476 +83,302 @@ def setup_logging(config: dict) -> None:
 # ============================================================================
 
 def load_config(config_path: str = "config.json") -> dict:
-    """
-    Загрузка конфигурации из JSON файла.
-
-    Args:
-        config_path: Путь к файлу конфигурации
-
-    Returns:
-        dict: Конфигурация приложения
-
-    Raises:
-        FileNotFoundError: Если config.json не найден
-        json.JSONDecodeError: Если config.json невалиден
-    """
-    logger = logging.getLogger(__name__)
-
+    """Загрузка конфигурации из JSON файла."""
     if not os.path.exists(config_path):
-        logger.error(f"Configuration file not found: {config_path}")
-        raise FileNotFoundError(f"Config file '{config_path}' does not exist")
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-
-        logger.info(f"Configuration loaded from {config_path}")
-        return config
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in config file: {str(e)}")
-        raise
+        raise FileNotFoundError(f"Config file '{config_path}' not found")
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 
 def load_credentials() -> dict:
-    """
-    Загрузка секретных ключей из .env файла.
-
-    Returns:
-        dict: Словарь с ключами 'client_id' и 'client_secret'
-
-    Raises:
-        ValueError: Если обязательные переменные окружения не найдены
-    """
-    logger = logging.getLogger(__name__)
-
-    # Загрузка переменных из .env
+    """Загрузка секретных ключей из .env файла."""
     load_dotenv()
-
     client_id = os.getenv('GIGACHAT_CLIENT_ID')
-    client_secret = os.getenv('GIGACHAT_CLIENT_SECRET')
+    client_secret = os.getenv('GIGACHAT_CREDENTIALS')
 
     if not client_id or not client_secret:
-        logger.error("Missing required environment variables")
-        raise ValueError(
-            "GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET must be set in .env file"
-        )
+        raise ValueError("Missing GIGACHAT_CLIENT_ID or GIGACHAT_CREDENTIALS in .env")
 
-    logger.info("Credentials loaded successfully")
-
-    return {
-        'client_id': client_id,
-        'client_secret': client_secret
-    }
+    return {'client_id': client_id, 'client_secret': client_secret}
 
 
 # ============================================================================
-# ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ
+# ИНТЕРАКТИВНАЯ СЕССИЯ КВИЗА
 # ============================================================================
 
-def initialize_system(config: dict, credentials: dict) -> OrchestratorAgent:
+def run_cli_quiz_session(orchestrator: OrchestratorAgent, quiz_data: list):
     """
-    Инициализация всех компонентов системы.
-
-    Args:
-        config: Конфигурация из config.json
-        credentials: Секретные ключи из .env
-
-    Returns:
-        OrchestratorAgent: Готовый к работе оркестратор
-    """
-    logger = logging.getLogger(__name__)
-
-    logger.info("Initializing system components...")
-
-    # 1. Создание CacheManager
-    cache_dir = config.get('cache_settings', {}).get('cache_dir', 'data/cache')
-    cache_manager = CacheManager(cache_dir=cache_dir)
-    logger.info(f"✓ CacheManager initialized: {cache_dir}")
-
-    # 2. Создание GigaChatClient
-    llm_settings = config.get('llm_settings', {})
-    client = GigaChatClient(
-        credentials=credentials,
-        model=llm_settings.get('model', 'GigaChat'),
-        temperature=llm_settings.get('temperature', 0.7),
-        timeout=llm_settings.get('timeout', 30),
-        verify_ssl_certs=llm_settings.get('verify_ssl_certs', False)
-    )
-    logger.info(f"✓ GigaChatClient initialized: {llm_settings.get('model')}")
-
-    # 3. Создание OrchestratorAgent
-    orchestrator = OrchestratorAgent(
-        config=config,
-        credentials=credentials,
-        cache_manager=cache_manager
-    )
-    logger.info("✓ OrchestratorAgent initialized")
-
-    logger.info("System initialization complete!")
-
-    return orchestrator
-
-
-# ============================================================================
-# ИНТЕРАКТИВНЫЙ CLI ИНТЕРФЕЙС
-# ============================================================================
-
-def print_welcome() -> None:
-    """Вывод приветственного сообщения."""
-    print("\n" + "=" * 70)
-    print("🎓 ГЕНЕРАТОР УМНЫХ КВИЗОВ - MVP")
-    print("=" * 70)
-    print("Превратите ваши заметки в интерактивные квизы для самопроверки!")
-    print("=" * 70 + "\n")
-
-
-def print_menu() -> None:
-    """Вывод главного меню."""
-    print("\n📋 ДОСТУПНЫЕ КОМАНДЫ:")
-    print("  1. new    - Создать новый квиз из заметки")
-    print("  2. regen  - Регенерировать квиз (новые вопросы)")
-    print("  3. stats  - Показать статистику сессии")
-    print("  4. help   - Показать справку")
-    print("  5. exit   - Выход из программы")
-    print()
-
-
-def read_note_from_file(file_path: str) -> Optional[str]:
-    """
-    Чтение текста заметки из файла.
-
-    Args:
-        file_path: Путь к файлу с заметкой
-
-    Returns:
-        str: Текст заметки или None при ошибке
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        print(f"❌ Ошибка чтения файла: {str(e)}")
-        return None
-
-
-def read_note_input() -> str:
-    """
-    Чтение многострочного ввода заметки от пользователя.
-
-    Returns:
-        str: Текст заметки
-    """
-    print("\n📝 Введите текст заметки (пустая строка для завершения):")
-    print("-" * 70)
-
-    lines = []
-    while True:
-        try:
-            line = input()
-            if not line.strip():
-                break
-            lines.append(line)
-        except EOFError:
-            break
-
-    return '\n'.join(lines)
-
-
-def display_quiz(quiz: list) -> None:
-    """
-    Отображение вопросов квиза.
-
-    Args:
-        quiz: Список вопросов из OrchestratorAgent
-    """
-    print("\n" + "=" * 70)
-    print("📚 ВАШ КВИЗ ГОТОВ!")
-    print("=" * 70)
-
-    for i, question in enumerate(quiz, 1):
-        print(f"\n❓ Вопрос {i}/{len(quiz)}")
-        print(f"   {question.get('question', 'N/A')}")
-
-        q_type = question.get('type', 'unknown')
-
-        if q_type == 'multiple_choice':
-            options = question.get('options', [])
-            for idx, option in enumerate(options):
-                print(f"   {idx + 1}. {option}")
-        elif q_type == 'true_false':
-            print("   1. True")
-            print("   2. False")
-
-        print()
-
-
-def run_quiz(orchestrator: OrchestratorAgent, quiz: list) -> None:
-    """
-    Интерактивное прохождение квиза.
+    Интерактивный режим прохождения квиза в консоли.
 
     Args:
         orchestrator: Оркестратор для проверки ответов
-        quiz: Список вопросов
+        quiz_data: Список вопросов
     """
-    print("\n" + "=" * 70)
-    print("🎯 НАЧИНАЕМ ТЕСТИРОВАНИЕ!")
-    print("=" * 70)
-    print("Введите номер ответа или 'skip' для пропуска вопроса\n")
+    print("\n" + "=" * 60)
+    print(f"🚀 КВИЗ ГОТОВ! Всего вопросов: {len(quiz_data)}")
+    print("=" * 60)
+    print("Введите номер правильного ответа или 'exit' для выхода.\n")
 
-    for i, question in enumerate(quiz, 1):
-        print(f"\n📌 Вопрос {i}/{len(quiz)}")
-        print(f"   {question.get('question', 'N/A')}")
+    for i, question in enumerate(quiz_data, 1):
+        print(f"❓ ВОПРОС {i}/{len(quiz_data)}")
+        print(f"   {question['question']}")
 
-        q_type = question.get('type', 'unknown')
-        question_id = question.get('question_id', '')
+        code_ctx = question.get('code_context')
+        if code_ctx:
+            print("\n" + "```")
+            print(code_ctx.strip())
+            print("```\n")
 
-        # Отображение вариантов
-        if q_type == 'multiple_choice':
-            options = question.get('options', [])
-            for idx, option in enumerate(options):
-                print(f"   {idx + 1}. {option}")
-        elif q_type == 'true_false':
+        print("-" * 40)
+
+        options = question.get('options', [])
+        if question['type'] == 'multiple_choice':
+            for idx, opt in enumerate(options, 1):
+                print(f"   {idx}. {opt}")
+        elif question['type'] == 'true_false':
             print("   1. True")
             print("   2. False")
 
-        # Ввод ответа
+        # Цикл ввода ответа
         while True:
             user_input = input("\n👉 Ваш ответ: ").strip().lower()
 
-            if user_input == 'skip':
-                print("⏭️  Вопрос пропущен")
-                break
+            if user_input in ['exit', 'quit']:
+                print("⚠️ Выход из квиза...")
+                return
 
-            # Валидация ввода
+            # Валидация и приведение к внутреннему формату
+            formatted_answer = None
             try:
-                if q_type == 'multiple_choice':
-                    answer_idx = int(user_input) - 1
-                    if 0 <= answer_idx < len(options):
-                        user_answer = str(answer_idx)
-                        break
-                elif q_type == 'true_false':
-                    if user_input in ['1', '2', 'true', 'false']:
-                        user_answer = 'true' if user_input in ['1', 'true'] else 'false'
-                        break
-                elif q_type == 'open_ended':
-                    user_answer = user_input
-                    break
+                if question['type'] == 'multiple_choice':
+                    idx = int(user_input) - 1
+                    if 0 <= idx < len(options):
+                        formatted_answer = options[idx]
+                elif question['type'] == 'true_false':
+                    if user_input in ['1', 'true']:
+                        formatted_answer = 'true'
+                    elif user_input in ['2', 'false']:
+                        formatted_answer = 'false'
 
-                print("❌ Некорректный ввод. Попробуйте снова.")
+                if formatted_answer is not None:
+                    break
+                print("❌ Некорректный ввод. Введите номер варианта.")
             except ValueError:
                 print("❌ Введите число.")
 
-        if user_input == 'skip':
-            continue
+        # Проверка
+        print("⏳ Проверка...")
+        result = orchestrator.submit_answer(question['question_id'], formatted_answer)
 
-        # Проверка ответа через оркестратор
-        result = orchestrator.submit_answer(question_id, user_answer)
-
-        if result.get('is_correct'):
-            print(f"✅ Правильно! Счёт: {result.get('score')}/{result.get('progress').split('/')[1]}")
+        if result['is_correct']:
+            print(f"✅ ВЕРНО! (Счет: {result['score']}/{result['total']})")
         else:
-            print(f"❌ Неправильно. Правильный ответ: {result.get('correct_answer')}")
+            print(f"❌ ОШИБКА. Правильный ответ: {result['correct_answer']}")
+            if result.get('explanation'):
+                print(f"\n💡 ПОЯСНЕНИЕ:\n{result['explanation']}")
+            if result.get('memory_palace'):
+                print(f"\n🏰 ДВОРЕЦ ПАМЯТИ (для запоминания):\n{result['memory_palace']}")
 
-            # Вывод объяснения
-            explanation = result.get('explanation', '')
-            if explanation:
-                print(f"\n💡 Объяснение:\n   {explanation}")
+        print("\n" + "_" * 60 + "\n")
 
-            # Вывод мнемонического образа
-            memory_palace = result.get('memory_palace', '')
-            if memory_palace:
-                print(f"\n🏰 Дворец памяти:\n   {memory_palace}")
-
-    # Финальная статистика
+    # Итоги
     stats = orchestrator.get_session_stats()
-    print("\n" + "=" * 70)
-    print("🎊 ТЕСТ ЗАВЕРШЁН!")
-    print("=" * 70)
-    print(f"📊 Результат: {stats['score']}/{stats['total']}")
-    print(f"📈 Точность: {stats['accuracy']}%")
-    print("=" * 70)
+    print("=" * 60)
+    print("🎉 ТЕСТ ЗАВЕРШЕН!")
+    print("=" * 60)
+    print(f"📊 Итоговый счет: {stats['score']} из {stats['total_questions']} ({stats['accuracy']}%)")
+    print("=" * 60)
+    if 'llm_stats' in stats:
+        llm = stats['llm_stats']
+        total_tok = llm.get('prompt_tokens', 0) + llm.get('completion_tokens', 0)
+        print("-" * 60)
+        print("💰 РАСХОД ТОКЕНОВ (GigaChat):")
+        print(f"  ➤ Запросов к API:   {llm.get('total_requests', 0)}")
+        print(f"  ➤ Входящие токены:  {llm.get('prompt_tokens', 0)}")
+        print(f"  ➤ Исходящие токены: {llm.get('completion_tokens', 0)}")
+        print(f"  ➤ ВСЕГО ТОКЕНОВ:    {total_tok}")
 
 
-def display_statistics(orchestrator: OrchestratorAgent) -> None:
+# ============================================================================
+# ПАРСИНГ АРГУМЕНТОВ КОМАНДНОЙ СТРОКИ
+# ============================================================================
+
+def parse_arguments():
     """
-    Отображение статистики текущей сессии.
-
-    Args:
-        orchestrator: Оркестратор с данными статистики
+    Парсинг аргументов командной строки.
     """
-    stats = orchestrator.get_session_stats()
+    parser = argparse.ArgumentParser(
+        description="🎓 Генератор Умных Квизов - CLI версия",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Примеры использования:
+  python main.py notes.txt
+  python main.py notes.txt -d hard -q 10
+  python main.py notes.txt --force --ignore-history --model GigaChat-Pro
+        """
+    )
 
-    print("\n" + "=" * 70)
-    print("📊 СТАТИСТИКА СЕССИИ")
-    print("=" * 70)
-    print(f"✅ Правильных ответов: {stats['score']}")
-    print(f"📝 Всего отвечено: {stats['total']}")
-    print(f"📈 Точность: {stats['accuracy']}%")
-    print(f"🧠 Концептов извлечено: {stats['concepts_extracted']}")
-    print(f"❓ Вопросов сгенерировано: {stats['questions_generated']}")
-    print(f"📜 Вопросов в истории: {stats['questions_in_history']}")
+    # Позиционный аргумент
+    parser.add_argument(
+        "file",
+        help="Путь к файлу заметки (.txt, .md)"
+    )
 
-    llm_stats = stats.get('llm_stats', {})
-    print(f"\n🤖 LLM Статистика:")
-    print(f"   Токенов в промптах: {llm_stats.get('prompt_tokens', 0)}")
-    print(f"   Токенов в ответах: {llm_stats.get('completion_tokens', 0)}")
-    print(f"   Всего запросов: {llm_stats.get('total_requests', 0)}")
-    print("=" * 70)
+    # Группа настроек генерации
+    gen_group = parser.add_argument_group('Настройки генерации')
+    gen_group.add_argument(
+        "-d", "--difficulty",
+        choices=['easy', 'medium', 'hard'],
+        default=None,
+        help="Сложность вопросов (по умолчанию берется из config.json)"
+    )
+    gen_group.add_argument(
+        "-q", "--questions",
+        type=int,
+        default=None,
+        help="Количество вопросов"
+    )
+    gen_group.add_argument(
+        "-m", "--model",
+        type=str,
+        default=None,
+        help="Модель GigaChat (например: GigaChat-Pro, GigaChat-Max)"
+    )
 
+    # Группа управления поведением
+    behavior_group = parser.add_argument_group('Управление состоянием')
+    behavior_group.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help="Принудительный парсинг (игнорировать кэш концептов)"
+    )
+    behavior_group.add_argument(
+        "--ignore-history",
+        action="store_true",
+        help="Игнорировать историю вопросов (позволяет создавать дубликаты)"
+    )
 
-def run_interactive_mode(orchestrator: OrchestratorAgent) -> None:
-    """
-    Запуск интерактивного режима CLI.
+    # Группа системных настроек
+    sys_group = parser.add_argument_group('Системные')
+    sys_group.add_argument(
+        "--debug",
+        action="store_true",
+        help="Режим отладки (подробное логирование в консоль и файл)"
+    )
 
-    Args:
-        orchestrator: Инициализированный оркестратор
-    """
-    logger = logging.getLogger(__name__)
+    return parser.parse_args()
 
-    print_welcome()
-
-    while True:
-        print_menu()
-        command = input("👉 Введите команду: ").strip().lower()
-
-        if command in ['1', 'new']:
-            # Создание нового квиза
-            print("\n📂 Выберите источник заметки:")
-            print("  1. Ввести текст вручную")
-            print("  2. Загрузить из файла")
-
-            choice = input("👉 Ваш выбор: ").strip()
-
-            note_text = None
-            if choice == '1':
-                note_text = read_note_input()
-            elif choice == '2':
-                file_path = input("📁 Путь к файлу: ").strip()
-                note_text = read_note_from_file(file_path)
-            else:
-                print("❌ Некорректный выбор")
-                continue
-
-            if not note_text or not note_text.strip():
-                print("❌ Текст заметки пуст")
-                continue
-
-            # Генерация квиза
-            print("\n⏳ Анализирую заметку и генерирую квиз...")
-            note_hash = compute_short_hash(note_text, length=8)
-            logger.info(f"Processing note {note_hash}")
-
-            result = orchestrator.start_new_session(note_text)
-
-            if result['status'] == 'success':
-                print(f"✅ {result['message']}")
-                quiz = result['quiz']
-                display_quiz(quiz)
-
-                # Предложение пройти тест
-                proceed = input("\n🎯 Пройти тест сейчас? (y/n): ").strip().lower()
-                if proceed == 'y':
-                    run_quiz(orchestrator, quiz)
-            else:
-                print(f"❌ {result['message']}")
-
-        elif command in ['2', 'regen']:
-            # Регенерация квиза
-            print("\n⏳ Генерирую новые вопросы...")
-            result = orchestrator.regenerate_quiz()
-
-            if result['status'] == 'success':
-                print(f"✅ {result['message']}")
-                quiz = result['quiz']
-                display_quiz(quiz)
-
-                proceed = input("\n🎯 Пройти тест сейчас? (y/n): ").strip().lower()
-                if proceed == 'y':
-                    run_quiz(orchestrator, quiz)
-            else:
-                print(f"❌ {result['message']}")
-
-        elif command in ['3', 'stats']:
-            # Статистика
-            display_statistics(orchestrator)
-
-        elif command in ['4', 'help']:
-            # Справка
-            print("\n" + "=" * 70)
-            print("📖 СПРАВКА")
-            print("=" * 70)
-            print("Эта система превращает ваши учебные заметки в интерактивные квизы.")
-            print("\nОсновной workflow:")
-            print("  1. Создайте новый квиз командой 'new'")
-            print("  2. Введите или загрузите текст заметки")
-            print("  3. Система извлечет ключевые концепты")
-            print("  4. Сгенерирует вопросы для самопроверки")
-            print("  5. Пройдите тест и получите объяснения ошибок")
-            print("\nКоманда 'regen' создаст новые вопросы по тем же концептам.")
-            print("=" * 70)
-
-        elif command in ['5', 'exit', 'quit']:
-            # Выход
-            print("\n👋 До свидания! Удачи в учёбе!")
-            logger.info("Application terminated by user")
-            break
-
-        else:
-            print("❌ Неизвестная команда. Введите 'help' для справки.")
 
 
 # ============================================================================
 # ГЛАВНАЯ ФУНКЦИЯ
 # ============================================================================
 
-def main() -> None:
+def main():
     """
     Главная функция приложения.
 
-    Последовательность:
-        1. Загрузка config.json
-        2. Настройка логирования
-        3. Загрузка .env credentials
-        4. Инициализация системы
-        5. Запуск интерактивного режима
+    Workflow:
+    1. Парсинг аргументов командной строки
+    2. Загрузка конфигурации и credentials
+    3. Инициализация системы
+    4. Чтение файла заметки
+    5. Запуск пайплайна обработки
+    6. Интерактивная сессия квиза
     """
+    # 1. Парсинг аргументов
+    args = parse_arguments()
+
+    # 2. Проверка существования файла
+    file_path = Path(args.file)
+    if not file_path.exists():
+        print(f"❌ Ошибка: Файл '{args.file}' не найден.")
+        sys.exit(1)
+
     try:
-        # 1. Загрузка конфигурации
-        config = load_config()
-
-        # 2. Настройка логирования
-        setup_logging(config)
-
+        # 3. Инициализация системы
+        setup_logging(args.debug)
         logger = logging.getLogger(__name__)
-        logger.info("Application started")
 
-        # 3. Загрузка credentials
+        logger.info("=" * 70)
+        logger.info("APPLICATION START")
+        logger.info("=" * 70)
+
+        config = load_config()
         credentials = load_credentials()
 
-        # 4. Инициализация системы
-        orchestrator = initialize_system(config, credentials)
+        # Если пользователь указал модель через флаг, переопределяем конфиг
+        if args.model:
+            # Убедимся, что секция существует
+            if "llm_settings" not in config:
+                config["llm_settings"] = {}
 
-        # 5. Запуск интерактивного режима
-        run_interactive_mode(orchestrator)
+            old_model = config["llm_settings"].get("model", "GigaChat")
+            config["llm_settings"]["model"] = args.model
+
+            print(f"🧠 Модель переопределена: {old_model} -> {args.model}")
+            logger.info(f"Model override via CLI: {args.model}")
+
+
+        # Явно инициализируем CacheManager
+        cache_manager = CacheManager(
+            cache_dir=config.get('cache_settings', {}).get('cache_dir', 'data/cache')
+        )
+
+        orchestrator = OrchestratorAgent(config, credentials, cache_manager)
+
+        # 4. Чтение файла
+        logger.info(f"Reading file: {args.file}")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            note_text = f.read()
+
+        if not note_text.strip():
+            print("❌ Файл пуст.")
+            sys.exit(1)
+
+        # Вывод информации о режиме
+        print(f"\n⚙️ Запуск анализа файла: {args.file}")
+        if args.force:
+            print("🔄 Режим принудительного парсинга (кэш игнорируется)")
+        if args.difficulty:
+            print(f"🎯 Сложность: {args.difficulty}")
+        if args.questions:
+            print(f"📝 Количество вопросов: {args.questions}")
+        print()
+
+        # 5. Запуск пайплайна
+        logger.info(f"Starting pipeline (force_reparse={args.force})")
+        result = orchestrator.process_note_pipeline(
+            note_text=note_text,
+            questions_count=args.questions,
+            difficulty=args.difficulty,
+            force_reparse=args.force,  # ✅ ПЕРЕДАЕМ ФЛАГ
+            ignore_history = args.ignore_history
+        )
+
+        if result['status'] == 'error':
+            print(f"❌ Ошибка генерации: {result['message']}")
+            sys.exit(1)
+
+        print(f"✅ {result['message']}")
+
+        # 6. Запуск квиза
+        run_cli_quiz_session(orchestrator, result['quiz'])
+
+        logger.info("Application finished successfully")
 
     except FileNotFoundError as e:
-        print(f"\n❌ Ошибка: {str(e)}")
-        print("Убедитесь, что файлы config.json и .env существуют.")
+        print(f"\n❌ Ошибка: {e}")
         sys.exit(1)
-
     except ValueError as e:
-        print(f"\n❌ Ошибка конфигурации: {str(e)}")
+        print(f"\n❌ Ошибка конфигурации: {e}")
         sys.exit(1)
-
     except KeyboardInterrupt:
-        print("\n\n👋 Программа прервана пользователем. До свидания!")
+        print("\n\n⚠️ Программа прервана пользователем. До свидания!")
         sys.exit(0)
-
     except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
-        print(f"\n❌ Критическая ошибка: {str(e)}")
+        logging.error(f"Critical Error: {e}", exc_info=True)
+        print(f"\n❌ Критическая ошибка: {e}")
         print("Проверьте логи для подробностей.")
         sys.exit(1)
 

@@ -4,6 +4,8 @@
 # Игнорирование ВСЕХ .log файлов везде
 *.log
 
+test_trash.txt
+test2.md
 # Игнорирование виртуального окружения
 .venv/
 
@@ -18,3 +20,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+
+
+cache/
+vector_db/

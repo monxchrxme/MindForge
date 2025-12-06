@@ -1,5 +1,3 @@
-# utils/hashing.py
-
 """
 Утилиты для хеширования данных (Pure Functions).
 
