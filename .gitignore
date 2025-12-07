@@ -4,8 +4,8 @@
 # Игнорирование ВСЕХ .log файлов везде
 *.log
 
-test_trash.txt
-test2.md
+lectures/test_trash.txt
+lectures/test2.md
 # Игнорирование виртуального окружения
 .venv/
 
