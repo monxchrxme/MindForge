@@ -4,11 +4,6 @@
 # Игнорирование ВСЕХ .log файлов везде
 *.log
 
-test_trash.txt
-test2.md
-bnyx.md
-math.md
-kits.md
 # Игнорирование виртуального окружения
 .venv/
 
@@ -27,3 +22,4 @@ __pycache__/
 
 cache/
 vector_db/
+lectures/
