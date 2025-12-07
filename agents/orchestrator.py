@@ -471,67 +471,70 @@ class OrchestratorAgent:
 
     def _analyze_content(self, text: str) -> NoteAnalysis:
         """
-        Анализирует тип и структуру заметки с помощью LLM,
-        чтобы выбрать лучшую стратегию генерации.
+        AI-Классификатор типа контента с предварительной жесткой эвристикой.
         """
-        logger.info("🧠 ORCHESTRATOR: Analyzing note structure...")
+        logger.info("🧠 ORCHESTRATOR: Analyzing content strategy...")
 
-        # Берем начало текста, чтобы не тратить токены (обычно суть в начале)
+        # 1. ЖЕСТКАЯ ЭВРИСТИКА (Hard Heuristic)
+        # Если текст очень короткий (меньше ~500 символов), нет смысла запускать парсер.
+        # Это решит проблему "заметки из 1 термина".
+        if len(text.strip()) < 500:
+            logger.info(" -> Heuristic: Text is too short (< 500 chars). Force 'direct_quiz'.")
+            return NoteAnalysis(
+                content_type=ContentType.SHORT,
+                summary="Short note",
+                complexity="easy",
+                recommended_strategy="direct_quiz"
+            )
+
+        # 2. AI-КЛАССИФИКАЦИЯ
+        # Берем 2000 символов, чтобы лучше понять структуру (список это или лекция)
         preview_text = text[:2000]
 
+        # Более точный промпт
         prompt = (
-            f"Проанализируй текст заметки и определи его тип.\n"
-            f"Текст (начало): {preview_text}\n\n"
-            f"Возможные типы:\n"
-            f"- theory: лекции, статьи, определения (стандартный текст)\n"
-            f"- code: программный код, функции, классы\n"
-            f"- math: математические формулы, задачи, теоремы\n"
-            f"- list: просто список фактов или слов\n"
-            f"- short: очень короткий текст (1-2 абзаца)\n\n"
-            f"Верни JSON: {{'type': '...', 'summary': 'кратко о чем', 'complexity': 'easy/medium/hard'}}"
+            f"Твоя задача — выбрать стратегию обработки учебного текста.\n"
+            f"Текст (начало):\n{preview_text}...\n\n"
+            f"Правила выбора:\n"
+            f"1. CODE -> Если в тексте есть программный код, функции, классы (Python, C++, Java и т.д.).\n"
+            f"2. SHORT -> Если это просто список терминов, тезисов (буллиты, нумерация) или очень поверхностный текст без глубоких определений.\n"
+            f"3. THEORY -> Если это связный текст, статья, лекция, параграф из учебника (даже если без кода!). Используй это для любых подробных текстовых материалов.\n\n"
+            f"Верни JSON: {{'type': 'code/short/theory', 'complexity': 'easy/medium/hard', 'summary': 'тема в 3 словах'}}"
         )
 
         try:
-            # Используем self.client для вызова LLM
-            # ВАЖНО: Тут предполагается, что ваш client умеет generate_json.
-            # Если нет, используйте просто generate и парсите.
             response = self.client.generate_json(prompt)
 
-            c_type_str = response.get("type", "unknown").lower()
-            # Маппинг строки в Enum
-            try:
-                c_type = ContentType(c_type_str)
-            except ValueError:
-                c_type = ContentType.THEORY  # Фоллбек на стандарт
+            # Парсинг ответа
+            c_type_str = response.get("type", "theory").lower()
+            complexity = response.get("complexity", "medium").lower()
+            summary = response.get("summary", "No summary")
 
-            # Определяем стратегию
-            strategy = "standard"
-            if c_type == ContentType.CODE:
+            # Логика маппинга
+            if "code" in c_type_str:
+                c_type = ContentType.CODE
                 strategy = "code_practice"
-            elif c_type == ContentType.SHORT or c_type == ContentType.LIST:
-                strategy = "direct_quiz"  # Пропускаем парсер, генерим сразу
-
-
-            c_complexity = response.get("complexity", "medium").lower()
-            if "hard" in c_complexity or "сложн" in c_complexity:
-                c_complexity = "hard"
-            elif "easy" in c_complexity or "легк" in c_complexity:
-                c_complexity = "easy"
+            elif "short" in c_type_str or "list" in c_type_str:
+                c_type = ContentType.SHORT
+                strategy = "direct_quiz"
             else:
-                c_complexity = "medium"
+                # Все остальное (включая подробные тексты без кода) -> STANDARD
+                c_type = ContentType.THEORY
+                strategy = "standard"
 
-            logger.info(f"🧠 Analysis Result: Type={c_type.value}, Strategy={strategy}")
+            logger.info(f"🤖 AI Decision: {c_type.value.upper()} | {strategy} | {complexity}")
+
             return NoteAnalysis(
                 content_type=c_type,
-                summary=response.get("summary", ""),
-                complexity=c_complexity,
+                summary=summary,
+                complexity=complexity,
                 recommended_strategy=strategy
             )
 
         except Exception as e:
-            logger.error(f"Analysis failed: {e}. Falling back to STANDARD strategy.")
-            # В случае ошибки возвращаем дефолт
-            return NoteAnalysis(ContentType.THEORY, "", "medium", "standard")
+            logger.error(f"AI Classifier failed: {e}. Defaulting to STANDARD.")
+            # Безопасный фоллбек
+            return NoteAnalysis(ContentType.THEORY, "Error", "medium", "standard")
 
     def _update_quiz_settings(self, count: int, difficulty: str):
         """Обновление настроек квиза."""
