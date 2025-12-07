@@ -212,10 +212,12 @@ class OrchestratorAgent:
                 self._log_data_transfer("Orchestrator", "Self", analysis_log, "analysis_result")
 
                 # 2.2 Фильтр мусора
-                if analysis.content_type == ContentType.UNKNOWN and len(note_text) < 50:
-                    return {"status": "error", "message": "Текст слишком короткий."}
-                elif analysis.content_type == ContentType.GARBAGE:
-                    return {"status": "error", "message": "Текст неинформативный."}
+                if analysis.content_type == ContentType.GARBAGE:
+                    logger.warning("⛔ Content rejected as GARBAGE.")
+                    return {
+                        "status": "error",
+                        "message": f"Текст отклонен (мусор/неинформативно). Суть: {analysis.summary}"
+                    }
 
                 current_strategy = analysis.recommended_strategy
 
@@ -471,34 +473,30 @@ class OrchestratorAgent:
 
     def _analyze_content(self, text: str) -> NoteAnalysis:
         """
-        AI-Классификатор типа контента с предварительной жесткой эвристикой.
+         AI-Классификатор: определяет стратегию и отсеивает мусор.
         """
-        logger.info("🧠 ORCHESTRATOR: Analyzing content strategy...")
+        logger.info("🧠 ORCHESTRATOR: Analyzing content quality & strategy...")
 
-        # 1. ЖЕСТКАЯ ЭВРИСТИКА (Hard Heuristic)
-        # Если текст очень короткий (меньше ~500 символов), нет смысла запускать парсер.
-        # Это решит проблему "заметки из 1 термина".
-        if len(text.strip()) < 500:
-            logger.info(" -> Heuristic: Text is too short (< 500 chars). Force 'direct_quiz'.")
-            return NoteAnalysis(
-                content_type=ContentType.SHORT,
-                summary="Short note",
-                complexity="easy",
-                recommended_strategy="direct_quiz"
-            )
+        clean_text = text.strip()
+        text_len = len(clean_text)
 
-        # 2. AI-КЛАССИФИКАЦИЯ
-        # Берем 2000 символов, чтобы лучше понять структуру (список это или лекция)
+        # 1. Технический фильтр (совсем пусто или микро-текст)
+        if text_len < 30:
+            return NoteAnalysis(ContentType.GARBAGE, "Empty/Too short", "easy", "none")
+
+        # 2. AI-Анализ
         preview_text = text[:2000]
-
         # Более точный промпт
         prompt = (
             f"Твоя задача — выбрать стратегию обработки учебного текста.\n"
             f"Текст (начало):\n{preview_text}...\n\n"
             f"Правила выбора:\n"
-            f"1. CODE -> Если в тексте есть программный код, функции, классы (Python, C++, Java и т.д.).\n"
-            f"2. SHORT -> Если это просто список терминов, тезисов (буллиты, нумерация) или очень поверхностный текст без глубоких определений.\n"
-            f"3. THEORY -> Если это связный текст, статья, лекция, параграф из учебника (даже если без кода!). Используй это для любых подробных текстовых материалов.\n\n"
+            f"1. GARBAGE -> В двух случаях: "
+            f"1 Случай: Если текст бессвязный, это спам, набор случайных символов или содержит слишком мало информации для теста.\n"
+            f"2 Случай: Если текст не является учебным материалом, например: список покупок, приветствия ('привет как дела'), todo list\n"
+            f"2. CODE -> Если в тексте есть и описывается программный код (Python, C++, Java и т.д.) или его отдельные части (ООП) и синтаксис. Даже если код окружен текстом - выбирай этот вариант.\n"
+            f"3. SHORT -> Если текст описывает 1 или 2 конкретные темы и он короткий\n"
+            f"4. THEORY -> Если это связный текст, статья, лекция, параграф из учебника (даже если без кода!). Используй это для любых подробных текстовых материалов.\n\n"
             f"Верни JSON: {{'type': 'code/short/theory', 'complexity': 'easy/medium/hard', 'summary': 'тема в 3 словах'}}"
         )
 
@@ -511,14 +509,16 @@ class OrchestratorAgent:
             summary = response.get("summary", "No summary")
 
             # Логика маппинга
-            if "code" in c_type_str:
+            if "garbage" in c_type_str:
+                c_type = ContentType.GARBAGE
+                strategy = "none"
+            elif "code" in c_type_str:
                 c_type = ContentType.CODE
                 strategy = "code_practice"
-            elif "short" in c_type_str or "list" in c_type_str:
+            elif "short" in c_type_str:
                 c_type = ContentType.SHORT
                 strategy = "direct_quiz"
             else:
-                # Все остальное (включая подробные тексты без кода) -> STANDARD
                 c_type = ContentType.THEORY
                 strategy = "standard"
 
