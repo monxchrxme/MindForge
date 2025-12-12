@@ -1,4 +1,3 @@
-#TODO Написать нормальный промт для случаем: code и direct
 from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
