@@ -18,3 +18,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+
+
+cache/
+vector_db/
+lectures/
