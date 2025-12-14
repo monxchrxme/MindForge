@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, Any
 from agents.tools.base import BaseTool
 import logging
 
@@ -6,23 +6,19 @@ logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
-    """Реестр всех доступных инструментов для агента"""
+    """Реестр инструментов агента"""
 
     def __init__(self):
         self._tools: Dict[str, BaseTool] = {}
 
     def register(self, tool: BaseTool) -> None:
-        """Регистрирует новый инструмент"""
-        name = tool.name
-        if name in self._tools:
-            logger.warning(f"Tool '{name}' already registered, overwriting")
-
-        self._tools[name] = tool
-        logger.info(f"Registered tool: {name}")
+        """Регистрирует инструмент"""
+        self._tools[tool.name] = tool
+        logger.info(f"Registered tool: {tool.name}")
 
     def execute_tool(self, name: str, **kwargs) -> Dict[str, Any]:
         """Выполняет инструмент по имени"""
-        logger.info(f"[REGISTRY] Executing tool: {name}")
+        logger.info(f"[TOOL] Executing: {name}")
 
         try:
             if name not in self._tools:
@@ -31,34 +27,24 @@ class ToolRegistry:
             tool = self._tools[name]
             result = tool.execute(**kwargs)
 
-            logger.info(f"[REGISTRY] Tool '{name}' completed: success={result.get('success', False)}")
+            logger.info(f"[TOOL] {name} completed: success={result.get('success', False)}")
             return result
 
         except Exception as e:
-            logger.error(f"[REGISTRY] Tool '{name}' failed: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": f"Tool execution failed: {str(e)}"
-            }
+            logger.error(f"[TOOL] {name} failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
 
-    def get_tools_description_for_llm(self) -> str:
-        """Возвращает описание всех инструментов для промпта LLM"""
+    def get_tools_description(self) -> str:
+        """Возвращает описание tools для промпта"""
         if not self._tools:
             return ""
 
-        descriptions = ["\n=== ДОСТУПНЫЕ ИНСТРУМЕНТЫ (опциональные) ===\n"]
+        lines = ["\n=== ДОСТУПНЫЕ ИНСТРУМЕНТЫ ===\n"]
 
-        for idx, (name, tool) in enumerate(self._tools.items(), 1):
-            descriptions.append(f"{idx}. **{name}**")
-            descriptions.append(f"{tool.description}\n")
+        for idx, tool in enumerate(self._tools.values(), 1):
+            lines.append(f"{idx}. {tool.name}")
+            lines.append(f"{tool.description}\n")
 
-        descriptions.append("⚠️ ВАЖНО:")
-        descriptions.append("- Все инструменты ОПЦИОНАЛЬНЫ — вызывай только при необходимости")
-        descriptions.append("- Можешь создать вопрос без использования tools")
-        descriptions.append("- Можешь вызвать несколько tools для одного вопроса\n")
+        lines.append("⚠️ Инструменты ОПЦИОНАЛЬНЫ - вызывай только при необходимости\n")
 
-        return "\n".join(descriptions)
-
-    def list_tools(self) -> List[str]:
-        """Возвращает список имён всех зарегистрированных инструментов"""
-        return list(self._tools.keys())
+        return "\n".join(lines)

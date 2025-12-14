@@ -1,16 +1,14 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from agents.tools.base import BaseTool
 from services.gigachat_client import GigaChatClient
 import logging
+
 
 logger = logging.getLogger(__name__)
 
 
 class DistractorGeneratorTool(BaseTool):
-    """
-    Генерирует правдоподобные неправильные варианты ответа.
-    Агент вызывает, когда чувствует, что его дистракторы слишком слабые.
-    """
+    """Генерирует правдоподобные неправильные варианты ответа"""
 
     def __init__(self, client: GigaChatClient):
         self.client = client
@@ -26,75 +24,58 @@ class DistractorGeneratorTool(BaseTool):
 
 КОГДА ИСПОЛЬЗОВАТЬ:
 - Твои дистракторы слишком очевидны ("banana", "error", "123")
-- Дистракторы не связаны с темой вопроса
+- Дистракторы не связаны с темой
 
-КОГДА НЕ ИСПОЛЬЗОВАТЬ:
-- Твои дистракторы уже правдоподобны
-- Вопрос типа true_false
-
-ВАЖНО: Это опциональный инструмент.
+ПРИМЕР ВЫЗОВА:
+{
+  "tool_calls": [{
+    "tool": "generate_plausible_distractor",
+    "args": {
+      "question": "Что делает метод __init__?",
+      "correct_answer": "Инициализирует объект",
+      "concept_definition": "Конструктор класса...",
+      "num_needed": 3
+    }
+  }]
+}
 """.strip()
 
-    def validate_args(self, **kwargs) -> bool:
-        required = ["question", "correct_answer", "concept_definition"]
-        for field in required:
-            if not kwargs.get(field):
-                logger.error(f"Missing required argument: {field}")
-                return False
-        return True
-
     def execute(self, **kwargs) -> Dict[str, Any]:
-        """Генерирует правдоподобные дистракторы"""
-        logger.info(f"[TOOL] {self.name} called")
+        """Генерирует дистракторы"""
+        question = kwargs.get("question", "")
+        correct = kwargs.get("correct_answer", "")
+        concept_def = kwargs.get("concept_definition", "")
+        num = kwargs.get("num_needed", 3)
 
-        if not self.validate_args(**kwargs):
-            return {
-                "success": False,
-                "error": "Invalid arguments",
-                "distractors": []
-            }
-
-        question = kwargs["question"]
-        correct = kwargs["correct_answer"]
-        concept_def = kwargs["concept_definition"]
-        num_needed = kwargs.get("num_needed", 3)
+        if not all([question, correct, concept_def]):
+            return {"success": False, "error": "Missing arguments"}
 
         prompt = f"""
-Сгенерируй {num_needed} ПРАВДОПОДОБНЫХ неправильных вариантов ответа.
+Сгенерируй {num} ПРАВДОПОДОБНЫХ неправильных вариантов ответа.
 
-КОНТЕКСТ:
 Вопрос: {question}
 Правильный ответ: {correct}
-Определение: {concept_def}
+Концепт: {concept_def}
 
 ТРЕБОВАНИЯ:
-- Правдоподобные (похожи на правильный ответ)
+- Похожи на правильный ответ по формату
 - Отражают типичные ошибки студентов
-- НЕ абсурдны ("banana", "123")
+- НЕ абсурдны
 
-ФОРМАТ (JSON):
+ФОРМАТ (только JSON):
 {{
     "distractors": ["Вариант 1", "Вариант 2", "Вариант 3"]
 }}
-
-НЕ используй markdown, только JSON.
 """.strip()
 
         try:
             response = self.client.generate_json(prompt)
             distractors = response.get("distractors", [])
 
-            logger.info(f"[TOOL] Generated {len(distractors)} distractors")
-
             return {
                 "success": True,
-                "distractors": distractors[:num_needed]
+                "distractors": distractors[:num]
             }
-
         except Exception as e:
-            logger.error(f"[TOOL] Error: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e),
-                "distractors": []
-            }
+            logger.error(f"Generation failed: {e}")
+            return {"success": False, "error": str(e)}

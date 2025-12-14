@@ -11,23 +11,16 @@ class BaseTool(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Имя инструмента для вызова агентом"""
+        """Имя инструмента"""
         pass
 
     @property
     @abstractmethod
     def description(self) -> str:
-        """Описание для LLM: что делает, когда использовать"""
+        """Описание для LLM"""
         pass
 
     @abstractmethod
     def execute(self, **kwargs) -> Dict[str, Any]:
-        """
-        Выполнение инструмента.
-        Returns: Dict с результатом выполнения
-        """
+        """Выполнение инструмента"""
         pass
-
-    def validate_args(self, **kwargs) -> bool:
-        """Валидация аргументов перед выполнением"""
-        return True
