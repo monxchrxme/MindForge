@@ -35,7 +35,7 @@ class ToolRegistry:
             return {"success": False, "error": str(e)}
 
     def get_tools_description(self) -> str:
-        """Возвращает описание tools для промпта"""
+        """Возвращает описание tools_quiz для промпта"""
         if not self._tools:
             return ""
 

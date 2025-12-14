@@ -2,8 +2,8 @@ from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
 import logging
-from agents.tools.registry import ToolRegistry
-from agents.tools.distractor_generator import DistractorGeneratorTool
+from agents.tools_quiz.registry import ToolRegistry
+from agents.tools_quiz.distractor_generator import DistractorGeneratorTool
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class QuizAgent:
 
         self.tool_registry = ToolRegistry()
         self._register_tools()
-        logger.info(f"QuizAgent initialized with {len(self.tool_registry._tools)} tools")
+        logger.info(f"QuizAgent initialized with {len(self.tool_registry._tools)} tools_quiz")
 
     def _register_tools(self):
         """Регистрирует доступные инструменты"""
@@ -82,7 +82,7 @@ class QuizAgent:
             history
     ) -> List[Dict]:
         """
-        Pipeline с поддержкой tools: вызов LLM → tool calls → валидация → дедупликация → постобработка
+        Pipeline с поддержкой tools_quiz: вызов LLM → tool calls → валидация → дедупликация → постобработка
         """
         try:
             # 1. Генерация LLM
@@ -116,7 +116,7 @@ class QuizAgent:
             concepts: Концепты для контекста
 
         Returns:
-            Список вопросов с примененными результатами tools
+            Список вопросов с примененными результатами tools_quiz
         """
         processed = []
 
@@ -126,7 +126,7 @@ class QuizAgent:
 
 
             if not tool_calls:
-                logger.debug(f"[QUIZ] Question #{idx} did NOT request tools")
+                logger.debug(f"[QUIZ] Question #{idx} did NOT request tools_quiz")
 
             if tool_calls:
                 logger.info(f"[QUIZ] Question #{idx} requested {len(tool_calls)} tool(s)")
