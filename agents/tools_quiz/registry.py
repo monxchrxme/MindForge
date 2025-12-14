@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from agents.tools.base import BaseTool
+from agents.tools_quiz.base import BaseTool
 import logging
 
 logger = logging.getLogger(__name__)
