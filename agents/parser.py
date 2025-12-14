@@ -48,52 +48,113 @@ class ParserAgent:
         self.cache_manager = cache_manager
         self.cache_enabled = cache_enabled
 
-    def parse_note(self, text: str) -> list:
+    def parse_note(self, text: str) -> List[Dict[str, Any]]:
         """
-        Принимает сырой текст заметки.
-        1. Вычисляет хеш.
-        2. Проверяет и при необходимости читает кэш.
-        3. Если нет кэша — вызывает LLM для извлечения концептов.
-        4. Сохраняет результат в кэш при необходимости.
-        5. Возвращает список концептов (list of dict).
+        Парсинг обычных заметок (без кода).
+        Извлекает ключевые концепты с полными определениями.
         """
-        note_hash = compute_hash(text)
+        logger.info("ParserAgent: Running STANDARD extraction mode")
 
-        if self.cache_enabled:
-            cached = self.cache_manager.get(note_hash)
-            if cached is not None:
-                return cached
+        prompt = (
+            "Вы — интеллектуальный помощник-методист с глубокими знаниями в образовательных дисциплинах. "
+            "Ваша задача — извлечь из учебной заметки ключевые концепты и составить для каждого максимально полное и полезное определение.\n\n"
+            "ВАЖНО: Определение должно быть самодостаточным и образовательно ценным. Это означает:\n"
+            "1. Если в тексте явно указаны свойства, характеристики или связи концепта — обязательно включите их в определение.\n"
+            "2. Если в тексте указано только базовое определение БЕЗ свойств и связей — пометьте это в поле 'needs_enrichment': true. "
+            "Такие концепты будут автоматически дополнены специальным инструментом.\n"
+            "3. Если свойства и связи частично упомянуты в тексте — также пометьте 'needs_enrichment': true для дополнения недостающими деталями.\n\n"
+            "Структура определения (всё в одном поле definition):\n"
+            "— Начните с чёткой формулировки понятия.\n"
+            "— Далее перечислите ключевые свойства и характеристики (из текста).\n"
+            "— Если информации достаточно, завершите описанием важнейших связей с другими концептами.\n\n"
+            "Примеры правильного подхода:\n\n"
+            "Пример 1 (в тексте только определение — требует обогащения):\n"
+            "Исходный текст: «Фотосинтез — процесс преобразования света в энергию».\n"
+            "Ваш вывод:\n"
+            "{\n"
+            "  \"term\": \"Фотосинтез\",\n"
+            "  \"definition\": \"Фотосинтез — процесс преобразования света в энергию.\",\n"
+            "  \"needs_enrichment\": true\n"
+            "}\n\n"
+            "Пример 2 (в тексте есть свойства, но нет связей — частичное обогащение):\n"
+            "Исходный текст: «Хлорофилл — зелёный пигмент, поглощает свет».\n"
+            "Ваш вывод:\n"
+            "{\n"
+            "  \"term\": \"Хлорофилл\",\n"
+            "  \"definition\": \"Хлорофилл — зелёный пигмент, поглощает свет.\",\n"
+            "  \"needs_enrichment\": true\n"
+            "}\n\n"
+            "Пример 3 (в тексте полная информация — обогащение не требуется):\n"
+            "Исходный текст: «Митохондрии — органеллы клетки, производят АТФ, имеют двойную мембрану, содержат собственную ДНК, участвуют в дыхании».\n"
+            "Ваш вывод:\n"
+            "{\n"
+            "  \"term\": \"Митохондрии\",\n"
+            "  \"definition\": \"Митохондрии — органеллы эукариотических клеток, отвечающие за производство АТФ (энергетической валюты клетки). "
+            "Имеют двойную мембрану, содержат собственную кольцевую ДНК (что указывает на симбиотическое происхождение), участвуют в процессе клеточного дыхания. "
+            "Тесно связаны с процессом окисления глюкозы и цикла Кребса, противоположны хлоропластам по функции (митохондрии расходуют кислород, хлоропласты их производят).\",\n"
+            "  \"needs_enrichment\": false\n"
+            "}\n\n"
+            "Формат вывода:\n"
+            "— JSON-список словарей с полями term, definition и needs_enrichment.\n"
+            "— Не используйте Markdown-блоки, вводные комментарии или пояснения.\n"
+            "— Строго следуйте формату для автоматической обработки.\n"
+            "— Выделяйте только значимые концепты из текста, не добавляйте термины, которых там нет.\n\n"
+            "Текст заметки:\n"
+            f"{text}"
+        )
 
-        concepts = self._extract_concepts_from_llm(text)
+        try:
+            result = self.client.generate_json(prompt)
 
-        print("Извлечённые концепты из LLM:")
-        for concept in concepts:
-            print(f" - {concept['term']}: {concept['definition']}")
+            # DEBUG: Логирование сырого результата от LLM
+            import json
+            logger.info("=" * 40)
+            logger.info("DEBUG PARSER RAW RESULT (STANDARD MODE):")
+            logger.info(json.dumps(result, ensure_ascii=False, indent=2))
+            logger.info("=" * 40)
 
-        logger.info("Извлечённые концепты (LLM): %s",
-                    "; ".join(f"{c['term']}: {c['definition']}" for c in concepts))
+            # Валидация и нормализация + обогащение при необходимости
+            valid_items = []
+            if isinstance(result, list):
+                for item in result:
+                    # Нормализация ключей
+                    term = item.get("term")
+                    definition = item.get("definition")
+                    needs_enrichment = item.get("needs_enrichment", False)
 
-        if self.cache_enabled:
-            self.cache_manager.save(note_hash, concepts)
+                    # Проверка обязательных полей
+                    if term and definition:
+                        # Если определение требует обогащения, вызываем @tool
+                        if needs_enrichment:
+                            logger.info(f"Enriching concept: {term}")
+                            try:
+                                # Вызов инструмента обогащения
+                                enriched_def = self._enrich_with_tool(term, definition, text)
+                                definition = enriched_def
+                                logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
+                            except Exception as enrich_error:
+                                logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
 
-        return concepts
+                        # Формируем чистый словарь
+                        clean_item = {
+                            "term": term,
+                            "definition": definition
+                        }
+                        valid_items.append(clean_item)
+
+            logger.info(f"Extracted {len(valid_items)} concepts")
+            return valid_items
+
+        except Exception as e:
+            logger.error(f"Standard parsing failed: {e}")
+            return []
 
     def parse_code_note(self, text: str) -> List[Dict[str, Any]]:
         """
         Специализированный парсинг для заметок с кодом.
         Извлекает ключевые концепты И связанные с ними куски кода.
-        При необходимости использует @tool для обогащения определений.
         """
-        note_hash = compute_hash(text)
-
-        # Проверка кэша
-        if self.cache_enabled:
-            cached = self.cache_manager.get(note_hash)
-            if cached is not None:
-                logger.info("ParserAgent: Using cached result for CODE extraction")
-                return cached
         logger.info("ParserAgent: Running CODE extraction mode")
-
 
         prompt = (
             "Вы — интеллектуальный помощник-методист с глубокими знаниями в образовательных дисциплинах и технических областях. "
@@ -171,7 +232,7 @@ class ParserAgent:
                     # Нормализация ключей
                     term = item.get("term")
                     definition = item.get("definition")
-                    code = item.get("code_snippet")
+                    code = item.get("code_snippet") or item.get("code") or item.get("snippet") or item.get("example")
                     needs_enrichment = item.get("needs_enrichment", False)
 
                     if term and (definition or code):
@@ -179,7 +240,7 @@ class ParserAgent:
                         if needs_enrichment and definition:
                             logger.info(f"Enriching concept: {term}")
                             try:
-                                # Вызов декоратора @tool для обогащения
+                                # Вызов инструмента обогащения
                                 enriched_def = self._enrich_with_tool(term, definition, text)
                                 definition = enriched_def
                                 logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
@@ -195,8 +256,6 @@ class ParserAgent:
                         valid_items.append(clean_item)
 
             logger.info(f"Extracted {len(valid_items)} code-concept pairs")
-            if self.cache_enabled:
-                self.cache_manager.save(note_hash, valid_items)
             return valid_items
 
         except Exception as e:
@@ -230,91 +289,3 @@ class ParserAgent:
         except Exception as e:
             logger.error(f"Enrichment tool failed: {e}")
             return basic_definition
-
-    def _extract_concepts_from_llm(self, text: str) -> list:
-        """
-        Формирует промпт, отправляет в GigaChat, возвращает список концептов.
-        При необходимости использует @tool для обогащения определений.
-        """
-        prompt = (
-            "Вы — интеллектуальный помощник-методист с глубокими знаниями в образовательных дисциплинах. "
-            "Ваша задача — извлечь из учебной заметки ключевые концепты и составить для каждого максимально полное и полезное определение.\n\n"
-            "ВАЖНО: Определение должно быть самодостаточным и образовательно ценным. Это означает:\n"
-            "1. Если в тексте явно указаны свойства, характеристики или связи концепта — обязательно включите их в определение.\n"
-            "2. Если в тексте указано только базовое определение БЕЗ свойств и связей — пометьте это в поле 'needs_enrichment': true. "
-            "Такие концепты будут автоматически дополнены специальным инструментом.\n"
-            "3. Если свойства и связи частично упомянуты в тексте — также пометьте 'needs_enrichment': true для дополнения недостающими деталями.\n\n"
-            "Структура определения (всё в одном поле definition):\n"
-            "— Начните с чёткой формулировки понятия.\n"
-            "— Далее перечислите ключевые свойства и характеристики (из текста).\n"
-            "— Если информации достаточно, завершите описанием важнейших связей с другими концептами.\n\n"
-            "Примеры правильного подхода:\n\n"
-            "Пример 1 (в тексте только определение — требует обогащения):\n"
-            "Исходный текст: «Фотосинтез — процесс преобразования света в энергию».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Фотосинтез\",\n"
-            "  \"definition\": \"Фотосинтез — процесс преобразования света в энергию.\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 2 (в тексте есть свойства, но нет связей — частичное обогащение):\n"
-            "Исходный текст: «Хлорофилл — зелёный пигмент, поглощает свет».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Хлорофилл\",\n"
-            "  \"definition\": \"Хлорофилл — зелёный пигмент, поглощает свет.\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 3 (в тексте полная информация — обогащение не требуется):\n"
-            "Исходный текст: «Митохондрии — органеллы клетки, производят АТФ, имеют двойную мембрану, содержат собственную ДНК, участвуют в дыхании».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Митохондрии\",\n"
-            "  \"definition\": \"Митохондрии — органеллы эукариотических клеток, отвечающие за производство АТФ (энергетической валюты клетки). "
-            "Имеют двойную мембрану, содержат собственную кольцевую ДНК (что указывает на симбиотическое происхождение), участвуют в процессе клеточного дыхания. "
-            "Тесно связаны с процессом окисления глюкозы и цикла Кребса, противоположны хлоропластам по функции (митохондрии расходуют кислород, хлоропласты его производят).\",\n"
-            "  \"needs_enrichment\": false\n"
-            "}\n\n"
-            "Формат вывода:\n"
-            "— JSON-список словарей с полями term, definition и needs_enrichment.\n"
-            "— Не используйте Markdown-блоки, вводные комментарии или пояснения.\n"
-            "— Строго следуйте формату для автоматической обработки.\n"
-            "— Выделяйте только значимые концепты из текста, не добавляйте термины, которых там нет.\n\n"
-            "Текст заметки:\n"
-            f"{text}"
-        )
-
-        result = self.client.generate_json(prompt)
-
-        import json
-        logger.info("=" * 40)
-        logger.info("DEBUG PARSER RAW RESULT (parse_note):")
-        logger.info(json.dumps(result, ensure_ascii=False, indent=2))
-        logger.info("=" * 40)
-
-        # Опционально: валидация структуры результата здесь
-        if not isinstance(result, list):
-            raise ValueError("GigaChat вернул неожиданный формат (ожидается список концептов)")
-
-        # Обогащение концептов при необходимости
-        enriched_result = []
-        for concept in result:
-            term = concept.get("term")
-            definition = concept.get("definition")
-            needs_enrichment = concept.get("needs_enrichment", False)
-
-            if needs_enrichment and definition and term:
-                logger.info(f"Enriching concept: {term}")
-                try:
-                    # Вызов декоратора @tool для обогащения
-                    enriched_def = self._enrich_with_tool(term, definition, text)
-                    concept["definition"] = enriched_def
-                    logger.info(f"Enriched definition for '{term}': {enriched_def[:100]}...")
-                except Exception as enrich_error:
-                    logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
-
-            # Удаляем служебное поле перед возвратом
-            concept.pop("needs_enrichment", None)
-            enriched_result.append(concept)
-
-        return enriched_result
