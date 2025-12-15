@@ -1,291 +1,281 @@
-
-
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
+from agents.tools_parser.enrichment_tool import ConceptEnrichmentTool
 from utils.hashing import compute_hash
 import logging
 from typing import Any, Dict, List
-from langchain.tools import tool
+import json
 
 logger = logging.getLogger(__name__)
 
 
-@tool
-def enrich_concept_definition(term: str, basic_definition: str, context: str = "") -> str:
-    """
-    Инструмент для обогащения определения концепта дополнительными свойствами и связями.
-
-    Args:
-        term: Название концепта
-        basic_definition: Базовое определение из текста
-        context: Дополнительный контекст (если есть частичные свойства/связи)
-
-    Returns:
-        Обогащённое определение с ключевыми свойствами и связями
-    """
-    enrichment_prompt = (
-        f"Вы — эксперт-методист. Дан концепт '{term}' с базовым определением: '{basic_definition}'.\n"
-        f"Дополнительный контекст: {context if context else 'отсутствует'}.\n\n"
-        "Ваша задача — обогатить это определение:\n"
-        "1. Добавить 2-3 ключевых свойства или характеристики концепта (общеизвестные, проверенные факты).\n"
-        "2. Указать важнейшие связи с другими релевантными понятиями (противопоставление, применение, примеры).\n"
-        "3. Сохранить исходное определение, дополнив его, а не переписывая.\n\n"
-        "Верните ТОЛЬКО обогащённое определение одним абзацем, без заголовков и пояснений."
-    )
-    # Здесь предполагается, что client доступен через глобальный контекст или передаётся
-    # В реальной реализации нужно передать client через замыкание или другой механизм
-    return enrichment_prompt  # Заглушка для демонстрации структуры
-
-
 class ParserAgent:
+    """
+    Агент для извлечения концептов из учебных заметок с интеллектуальным обогащением.
+    Parser САМ решает через LLM, когда вызывать enrichment tool.
+    """
+
     def __init__(self, client: GigaChatClient, cache_manager: CacheManager, cache_enabled: bool = True):
         """
-        :param client: Экземпляр GigaChatClient
-        :param cache_manager: Экземпляр CacheManager
-        :param cache_enabled: Включать ли кэширование концептов (True/False)
+        Инициализация агента парсинга.
+
+        Args:
+            client: Экземпляр GigaChatClient для LLM-запросов
+            cache_manager: Менеджер кэширования результатов
+            cache_enabled: Флаг включения кэширования
         """
         self.client = client
         self.cache_manager = cache_manager
         self.cache_enabled = cache_enabled
 
+        # Инициализируем tool обогащения
+        self.enrichment_tool = ConceptEnrichmentTool(client)
+        logger.info(f"✅ Enrichment tool initialized: {self.enrichment_tool.name}")
+
     def parse_note(self, text: str) -> List[Dict[str, Any]]:
         """
         Парсинг обычных заметок (без кода).
-        Извлекает ключевые концепты с полными определениями.
+        Извлекает концепты и автоматически обогащает определения.
+
+        Args:
+            text: Текст учебной заметки
+
+        Returns:
+            Список словарей [{term: str, definition: str}, ...]
         """
         logger.info("ParserAgent: Running STANDARD extraction mode")
 
-        prompt = (
-            "Вы — интеллектуальный помощник-методист с глубокими знаниями в образовательных дисциплинах. "
-            "Ваша задача — извлечь из учебной заметки ключевые концепты и составить для каждого максимально полное и полезное определение.\n\n"
-            "ВАЖНО: Определение должно быть самодостаточным и образовательно ценным. Это означает:\n"
-            "1. Если в тексте явно указаны свойства, характеристики или связи концепта — обязательно включите их в определение.\n"
-            "2. Если в тексте указано только базовое определение БЕЗ свойств и связей — пометьте это в поле 'needs_enrichment': true. "
-            "Такие концепты будут автоматически дополнены специальным инструментом.\n"
-            "3. Если свойства и связи частично упомянуты в тексте — также пометьте 'needs_enrichment': true для дополнения недостающими деталями.\n\n"
-            "Структура определения (всё в одном поле definition):\n"
-            "— Начните с чёткой формулировки понятия.\n"
-            "— Далее перечислите ключевые свойства и характеристики (из текста).\n"
-            "— Если информации достаточно, завершите описанием важнейших связей с другими концептами.\n\n"
-            "Примеры правильного подхода:\n\n"
-            "Пример 1 (в тексте только определение — требует обогащения):\n"
-            "Исходный текст: «Фотосинтез — процесс преобразования света в энергию».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Фотосинтез\",\n"
-            "  \"definition\": \"Фотосинтез — процесс преобразования света в энергию.\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 2 (в тексте есть свойства, но нет связей — частичное обогащение):\n"
-            "Исходный текст: «Хлорофилл — зелёный пигмент, поглощает свет».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Хлорофилл\",\n"
-            "  \"definition\": \"Хлорофилл — зелёный пигмент, поглощает свет.\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 3 (в тексте полная информация — обогащение не требуется):\n"
-            "Исходный текст: «Митохондрии — органеллы клетки, производят АТФ, имеют двойную мембрану, содержат собственную ДНК, участвуют в дыхании».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Митохондрии\",\n"
-            "  \"definition\": \"Митохондрии — органеллы эукариотических клеток, отвечающие за производство АТФ (энергетической валюты клетки). "
-            "Имеют двойную мембрану, содержат собственную кольцевую ДНК (что указывает на симбиотическое происхождение), участвуют в процессе клеточного дыхания. "
-            "Тесно связаны с процессом окисления глюкозы и цикла Кребса, противоположны хлоропластам по функции (митохондрии расходуют кислород, хлоропласты их производят).\",\n"
-            "  \"needs_enrichment\": false\n"
-            "}\n\n"
-            "Формат вывода:\n"
-            "— JSON-список словарей с полями term, definition и needs_enrichment.\n"
-            "— Не используйте Markdown-блоки, вводные комментарии или пояснения.\n"
-            "— Строго следуйте формату для автоматической обработки.\n"
-            "— Выделяйте только значимые концепты из текста, не добавляйте термины, которых там нет.\n\n"
-            "Текст заметки:\n"
-            f"{text}"
+        # Упрощенный промпт - только извлечение
+        extraction_prompt = (
+            "Ты — эксперт по извлечению ключевых концептов из учебных материалов.\n\n"
+            "ЗАДАЧА: Извлеки из текста все значимые концепты (термины, понятия, определения).\n\n"
+            "ДЛЯ КАЖДОГО КОНЦЕПТА:\n"
+            "- term: точное название концепта\n"
+            "- definition: определение из текста КАК ЕСТЬ (не додумывай, не расширяй)\n\n"
+            "ПРАВИЛА:\n"
+            "- Извлекай только то, что явно указано в тексте\n"
+            "- Один концепт = одна запись\n"
+            "- Если определения нет, используй описание из текста\n"
+            "- Не добавляй концепты, которых нет в тексте\n\n"
+            "ФОРМАТ ВЫВОДА:\n"
+            "JSON-массив: [{\"term\": \"...\", \"definition\": \"...\"}, ...]\n"
+            "Без Markdown-блоков, без комментариев.\n\n"
+            f"ТЕКСТ ЗАМЕТКИ:\n{text}"
         )
 
         try:
-            result = self.client.generate_json(prompt, temperature=0.2)
+            result = self.client.generate_json(extraction_prompt, temperature=0.2)
 
-            # DEBUG: Логирование сырого результата от LLM
-            import json
-            logger.info("=" * 40)
-            logger.info("DEBUG PARSER RAW RESULT (STANDARD MODE):")
+            # DEBUG: Логирование
+            logger.info("=" * 50)
+            logger.info("PARSER RAW EXTRACTION (STANDARD MODE):")
             logger.info(json.dumps(result, ensure_ascii=False, indent=2))
-            logger.info("=" * 40)
+            logger.info("=" * 50)
 
-            # Валидация и нормализация + обогащение при необходимости
             valid_items = []
             if isinstance(result, list):
-                for item in result:
-                    # Нормализация ключей
+                for idx, item in enumerate(result, 1):
                     term = item.get("term")
                     definition = item.get("definition")
-                    needs_enrichment = item.get("needs_enrichment", False)
 
-                    # Проверка обязательных полей
-                    if term and definition:
-                        # Если определение требует обогащения, вызываем @tool
-                        if needs_enrichment:
-                            logger.info(f"Enriching concept: {term}")
-                            try:
-                                # Вызов инструмента обогащения
-                                enriched_def = self._enrich_with_tool(term, definition, text)
-                                definition = enriched_def
-                                logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
-                            except Exception as enrich_error:
-                                logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
+                    if not term or not definition:
+                        logger.warning(f"Skipping item {idx}: missing term or definition")
+                        continue
 
-                        # Формируем чистый словарь
-                        clean_item = {
-                            "term": term,
-                            "definition": definition
-                        }
-                        valid_items.append(clean_item)
+                    logger.info(f"[{idx}/{len(result)}] Processing concept: {term}")
 
-            logger.info(f"Extracted {len(valid_items)} concepts")
+                    # Parser САМ решает через LLM: нужно ли обогащение
+                    final_definition = self._decide_and_enrich(
+                        term=term,
+                        definition=definition,
+                        context=text[:500]
+                    )
+
+                    valid_items.append({
+                        "term": term,
+                        "definition": final_definition
+                    })
+
+                    logger.info(f"✓ Processed '{term}': {len(final_definition)} chars")
+
+            logger.info(f"Successfully extracted and processed {len(valid_items)} concepts")
             return valid_items
 
         except Exception as e:
-            logger.error(f"Standard parsing failed: {e}")
+            logger.error(f"Standard parsing failed: {e}", exc_info=True)
             return []
 
     def parse_code_note(self, text: str) -> List[Dict[str, Any]]:
         """
         Специализированный парсинг для заметок с кодом.
-        Извлекает ключевые концепты И связанные с ними куски кода.
+        Извлекает концепты + code snippets, обогащает через решение парсера.
+
+        Args:
+            text: Текст технической заметки с кодом
+
+        Returns:
+            Список словарей [{term: str, definition: str, code_snippet: str|None}, ...]
         """
         logger.info("ParserAgent: Running CODE extraction mode")
 
-        prompt = (
-            "Вы — интеллектуальный помощник-методист с глубокими знаниями в образовательных дисциплинах и технических областях. "
-            "Ваша задача — извлечь из учебной или технической заметки ключевые концепты и составить для каждого максимально полное и полезное определение.\n\n"
-            "ВАЖНО: Определение должно быть самодостаточным и образовательно ценным. Это означает:\n"
-            "1. Если в тексте явно указаны свойства, характеристики или связи концепта — обязательно включите их в определение.\n"
-            "2. Если в тексте указано только базовое определение БЕЗ свойств и связей — пометьте это в поле 'needs_enrichment': true. "
-            "Такие концепты будут автоматически дополнены специальным инструментом.\n"
-            "3. Если свойства и связи частично упомянуты в тексте — также пометьте 'needs_enrichment': true для дополнения недостающими деталями.\n\n"
-            "ДОПОЛНИТЕЛЬНО ДЛЯ ТЕХНИЧЕСКИХ ЗАМЕТОК:\n"
-            "4. Если в тексте встречаются фрагменты кода (функции, классы, алгоритмы, паттерны), которые иллюстрируют концепт:\n"
-            "  • Выделите связь между теорией и кодом.\n"
-            "  • Включите фрагмент кода в поле code_snippet (точная копия из текста).\n"
-            "  • Если концепт чисто теоретический и не имеет кода — оставьте code_snippet как null.\n\n"
-            "Структура определения (всё в поле definition):\n"
-            "— Начните с чёткой формулировки понятия.\n"
-            "— Далее перечислите ключевые свойства и характеристики (из текста).\n"
-            "— Если информации достаточно, завершите описанием важнейших связей с другими концептами.\n"
-            "— Если есть иллюстрирующий код — упомяните его связь с теорией в definition.\n\n"
-            "Примеры правильного подхода:\n\n"
-            "Пример 1 (теоретический концепт — только базовое определение, требует обогащения):\n"
-            "Исходный текст: «Фотосинтез — процесс преобразования света в энергию».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Фотосинтез\",\n"
-            "  \"definition\": \"Фотосинтез — процесс преобразования света в энергию.\",\n"
-            "  \"code_snippet\": null,\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 2 (технический концепт с кодом — полная информация):\n"
-            "Исходный текст: «Декоратор @staticmethod в Python создаёт статические методы класса, не требующие self или cls. "
-            "Применяется для утилитарных функций класса. Пример: @staticmethod def foo(): pass».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Декоратор @staticmethod\",\n"
-            "  \"definition\": \"Декоратор @staticmethod в Python используется для создания статических методов класса — методов, которые не требуют доступа к экземпляру (self) или классу (cls). "
-            "Применяется для вспомогательных функций, логически связанных с классом, но не зависящих от его состояния. Часто используется вместе с @classmethod для организации утилит.\",\n"
-            "  \"code_snippet\": \"@staticmethod\\ndef foo():\\n    pass\",\n"
-            "  \"needs_enrichment\": false\n"
-            "}\n\n"
-            "Пример 3 (алгоритм с кодом — частичная информация, требует обогащения):\n"
-            "Исходный текст: «Бинарный поиск работает на отсортированных массивах. Код: while left <= right: mid = (left+right)//2...».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Бинарный поиск\",\n"
-            "  \"definition\": \"Бинарный поиск работает на отсортированных массивах.\",\n"
-            "  \"code_snippet\": \"while left <= right:\\n    mid = (left+right)//2\\n    ...\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Формат вывода:\n"
-            "— JSON-список словарей с полями term, definition, code_snippet и needs_enrichment.\n"
-            "— Не используйте Markdown-блоки, вводные комментарии или пояснения.\n"
-            "— Строго следуйте формату для автоматической обработки.\n"
-            "— Выделяйте только значимые концепты из текста, не добавляйте термины, которых там нет.\n"
-            "— Если концепт чисто теоретический (без кода) — code_snippet = null.\n\n"
-            "Текст заметки:\n"
-            f"{text}"
+        extraction_prompt = (
+            "Ты — эксперт по извлечению технических концептов из учебных материалов с кодом.\n\n"
+            "ЗАДАЧА: Извлеки концепты И связанные с ними фрагменты кода.\n\n"
+            "ДЛЯ КАЖДОГО КОНЦЕПТА:\n"
+            "- term: название концепта (функция, класс, алгоритм, паттерн)\n"
+            "- definition: определение из текста КАК ЕСТЬ\n"
+            "- code_snippet: точная копия кода из текста (если есть) или null\n\n"
+            "ПРАВИЛА:\n"
+            "- Извлекай только явно указанные в тексте концепты\n"
+            "- Если код иллюстрирует концепт — включи его в code_snippet\n"
+            "- Если концепт теоретический (без кода) — code_snippet = null\n"
+            "- Сохраняй форматирование кода (отступы, переносы)\n\n"
+            "ФОРМАТ ВЫВОДА:\n"
+            "JSON-массив: [{\"term\": \"...\", \"definition\": \"...\", \"code_snippet\": \"...\" или null}, ...]\n"
+            "Без Markdown-блоков, без комментариев.\n\n"
+            f"ТЕКСТ ЗАМЕТКИ:\n{text}"
         )
 
         try:
-            result = self.client.generate_json(prompt, temperature=0.2)
+            result = self.client.generate_json(extraction_prompt, temperature=0.2)
 
-            # >>> ВСТАВИТЬ ЛОГИРОВАНИЕ ЗДЕСЬ <<<
-            import json
-            logger.info("=" * 40)
-            logger.info("DEBUG PARSER RAW RESULT:")
+            # DEBUG: Логирование
+            logger.info("=" * 50)
+            logger.info("PARSER RAW EXTRACTION (CODE MODE):")
             logger.info(json.dumps(result, ensure_ascii=False, indent=2))
-            logger.info("=" * 40)
-            # >>> КОНЕЦ ВСТАВКИ <<<
+            logger.info("=" * 50)
 
-            # Валидация и очистка + обогащение при необходимости
             valid_items = []
             if isinstance(result, list):
-                for item in result:
-                    # Нормализация ключей
+                for idx, item in enumerate(result, 1):
                     term = item.get("term")
                     definition = item.get("definition")
-                    code = item.get("code_snippet") or item.get("code") or item.get("snippet") or item.get("example")
-                    needs_enrichment = item.get("needs_enrichment", False)
+                    code = (item.get("code_snippet") or
+                            item.get("code") or
+                            item.get("snippet") or
+                            item.get("example"))
 
-                    if term and (definition or code):
-                        # Если определение требует обогащения, вызываем @tool
-                        if needs_enrichment and definition:
-                            logger.info(f"Enriching concept: {term}")
-                            try:
-                                # Вызов инструмента обогащения
-                                enriched_def = self._enrich_with_tool(term, definition, text)
-                                definition = enriched_def
-                                logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
-                            except Exception as enrich_error:
-                                logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
+                    if not term or not (definition or code):
+                        logger.warning(f"Skipping item {idx}: missing required fields")
+                        continue
 
-                        # Явно формируем чистый словарь
-                        clean_item = {
-                            "term": term,
-                            "definition": definition or "",  # Пустая строка вместо None для текста
-                            "code_snippet": code  # Здесь может быть None
-                        }
-                        valid_items.append(clean_item)
+                    logger.info(f"[{idx}/{len(result)}] Processing code concept: {term}")
 
-            logger.info(f"Extracted {len(valid_items)} code-concept pairs")
+                    # Parser решает через LLM: нужно ли обогащение
+                    if definition:
+                        final_definition = self._decide_and_enrich(
+                            term=term,
+                            definition=definition,
+                            context=text[:500]
+                        )
+                    else:
+                        final_definition = ""
+                        logger.warning(f"No definition for '{term}', skipping enrichment")
+
+                    valid_items.append({
+                        "term": term,
+                        "definition": final_definition,
+                        "code_snippet": code
+                    })
+
+                    logger.info(
+                        f"✓ Processed '{term}': def={len(final_definition)} chars, code={'Yes' if code else 'No'}"
+                    )
+
+            logger.info(f"Successfully extracted and processed {len(valid_items)} code concepts")
             return valid_items
 
         except Exception as e:
-            logger.error(f"Code parsing failed: {e}")
+            logger.error(f"Code parsing failed: {e}", exc_info=True)
             return []
 
-    def _enrich_with_tool(self, term: str, basic_definition: str, full_text: str) -> str:
+    def _decide_and_enrich(self, term: str, definition: str, context: str = "") -> str:
         """
-        Внутренний метод для вызова инструмента обогащения определений.
-        Использует декоратор @tool через LLM.
+        Parser САМ решает через LLM: нужно ли обогащение, и вызывает tool если нужно.
+
+        Args:
+            term: Название концепта
+            definition: Определение из текста
+            context: Контекст из документа
+
+        Returns:
+            Финальное определение (обогащённое или исходное)
         """
-        enrichment_prompt = (
-            f"Вы — эксперт-методист. Дан концепт '{term}' с определением: '{basic_definition}'.\n"
-            f"Контекст из исходного текста: {full_text[:500]}...\n\n"
-            "Ваша задача — обогатить это определение:\n"
-            "1. Сохраните исходное определение.\n"
-            "2. Добавьте 2-3 ключевых свойства или характеристики (общеизвестные факты из вашей базы знаний).\n"
-            "3. Укажите важнейшие связи с другими понятиями (противопоставление, применение, примеры).\n"
-            "4. Используйте только проверенные, общепринятые в науке/технике факты.\n\n"
-            "ФОРМАТ: Верните ТОЛЬКО обогащённое определение одним связным абзацем, без заголовков, маркеров и пояснений.\n"
-        )
+        # Промпт для принятия решения (смягченный)
+        decision_prompt = f"""
+    Ты — эксперт по оценке учебных определений.
+
+    КОНЦЕПТ: "{term}"
+    ОПРЕДЕЛЕНИЕ: "{definition}"
+
+    ЗАДАЧА: Реши, нужно ли ОБОГАТИТЬ это определение для студентов.
+
+    ОБОГАЩЕНИЕ НУЖНО (ответь ENRICH) если:
+    • Определение короче 2 предложений
+    • Только базовая формулировка без деталей
+    • Нет свойств, характеристик или примеров
+    • Студент не поймет КАК это работает или ГДЕ применяется
+
+    ОБОГАЩЕНИЕ НЕ НУЖНО (ответь KEEP) если:
+    • Определение содержит 3+ предложения с деталями
+    • Уже есть свойства И связи с другими понятиями
+    • Есть конкретные примеры или применение
+    • Информация избыточна для базового понимания
+
+    ПРИМЕРЫ:
+
+    ПРИМЕР 1:
+    Концепт: "Класс"
+    Определение: "Класс — это шаблон для создания объектов."
+    Решение: ENRICH (слишком кратко, нет деталей)
+
+    ПРИМЕР 2:
+    Концепт: "Полиморфизм"
+    Определение: "Полиморфизм — способность объектов разных классов обрабатываться через единый интерфейс. В Python реализуется через утиную типизацию и переопределение методов. Позволяет писать гибкий код."
+    Решение: KEEP (уже есть суть, свойства и применение)
+
+    ПРИМЕР 3:
+    Концепт: "Инкапсуляция"
+    Определение: "Инкапсуляция — механизм сокрытия данных."
+    Решение: ENRICH (базовое определение без объяснения КАК и ЗАЧЕМ)
+
+    ТВОЕ РЕШЕНИЕ (одно слово):
+    ENRICH или KEEP?
+        """.strip()
 
         try:
-            # Используем обычный generate вместо generate_json для текстового ответа
-            enriched = self.client.generate(enrichment_prompt, temperature=0.2)
+            # LLM принимает решение
+            decision = self.client.generate(decision_prompt, temperature=0.1).strip().upper()
 
-            # Очистка от возможных артефактов форматирования
-            enriched = enriched.strip().replace('\n\n', ' ').replace('  ', ' ')
+            # Логируем полный ответ для отладки
+            logger.info(f"Decision for '{term}': {decision}")
 
-            return enriched if enriched else basic_definition
+            # Парсим ответ (ищем ключевое слово)
+            needs_enrichment = "ENRICH" in decision
+
+            if needs_enrichment:
+                logger.info(f"🔧 Enriching '{term}' via tool...")
+
+                # Вызываем enrichment tool
+                result = self.enrichment_tool.execute(
+                    term=term,
+                    basic_definition=definition,
+                    context=context
+                )
+
+                if result.get("success"):
+                    enriched_def = result.get("enriched_definition", definition)
+                    logger.info(f"✅ Enriched '{term}': {len(enriched_def)} chars")
+                    return enriched_def
+                else:
+                    error = result.get("error", "Unknown error")
+                    logger.warning(f"⚠️ Enrichment failed for '{term}': {error}, using original")
+                    return definition
+            else:
+                logger.info(f"✓ Definition for '{term}' is complete, no enrichment needed")
+                return definition
+
         except Exception as e:
-            logger.error(f"Enrichment tool failed: {e}")
-            return basic_definition
+            logger.error(f"Decision/enrichment process failed for '{term}': {e}")
+            return definition
+
