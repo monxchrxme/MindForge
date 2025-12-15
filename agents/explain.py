@@ -151,7 +151,7 @@ class ExplainAgent:
                 question_text, user_ans, correct_ans, content_type, strategy
             )
             logger.info("🎬 ACTION: Generating initial explanation...")
-            response_data = self.client.generate_json(prompt, temperature=0.8)
+            response_data = self.client.generate_json(prompt, temperature=0.99)
 
             # Предварительная проверка структуры (техническая валидация)
             if not self._validate_response_structure(response_data):
@@ -183,7 +183,7 @@ class ExplainAgent:
                 improved_prompt = prompt + correction_instruction
 
                 # Повторное действие (Action - Second Pass)
-                response_data = self.client.generate_json(improved_prompt, temperature=0.8)
+                response_data = self.client.generate_json(improved_prompt, temperature=0.99)
                 logger.info("✅ CORRECTION: Regeneration complete.")
 
                 # (Опционально) Можно проверить качество еще раз, но обычно 1 цикла достаточно

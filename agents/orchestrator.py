@@ -1,7 +1,7 @@
 import logging
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from agents.parser import ParserAgent
 from agents.factcheck import FactCheckAgent
@@ -395,7 +395,7 @@ class OrchestratorAgent:
 
             # Проверка результата парсинга
             if not extracted:
-                return "Parser returned 0 concepts. Text might be too short or complex for the selected strategy."
+                return "OBSERVATION_WARNING: Parser returned 0 concepts. The text might be too abstract or unstructured. Consider using 'generate_quiz' with mode='direct_quiz'."
 
             # Сохранение состояния
             self.context["concepts"] = extracted
