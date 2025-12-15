@@ -205,26 +205,10 @@ class QuizAgent:
            - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
            - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
            - ДИСТРАКТОРЫ (неверные варианты) должны быть правдоподобны с точки зрения кода (типичные ошибки, неправильные рассуждения).
-
-            2) true_false:
-           - Вопрос формулируется как утверждение о коде или концепте.
-           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
-           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
-
-            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
-            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
-            - Не задавай вопросы вида "Выберите правильный вариант: True/False" - в таком случае используй тип "true_false".
-            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
-            - Избегай слов "всегда", "никогда" и другие универсальные утверждения
-            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
-            {avoid_part}
-            
-            {self._get_direct_quiz_format()}
+            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
+            ОБЯЗАТЕЛЬНО проверяй дистракторы для каждого вопроса, если не уверен в них на 100% и они кажутся слабыми (или если хотя бы 1 дистрактор плохой), вызови tool:
             
             {tools_description}
-            
-            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
-            Если не уверен в дистракторах на 100% и они кажутся слабыми (или если хотя бы 1 дистрактор плохой), вызови tool:
             
             {{
               "question": "Что делает __init__?",
@@ -242,8 +226,22 @@ class QuizAgent:
                 }}
               ]
             }}
+
+
+            2) true_false:
+           - Вопрос формулируется как утверждение о коде или концепте.
+           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
+           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
+
+            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
+            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
+            - Не задавай вопросы вида "Выберите правильный вариант: True/False" - в таком случае используй тип "true_false".
+            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
+            - Избегай слов "всегда", "никогда" и другие универсальные утверждения
+            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
+            {avoid_part}
             
-            Если уверен в вопросе - оставь "tool_calls": []
+            {self._get_direct_quiz_format()}
             """
         )
 
@@ -281,7 +279,7 @@ class QuizAgent:
 
                 return (
                     f"""
-        Ты — Senior Developer, занимающийся разработкой квизов для обучающихся. 
+        Ты - Senior Developer, занимающийся разработкой квизов для обучающихся. 
         Твоя задача - сгенерировать {self.questions_count} НЕТРИВИАЛЬНЫХ задач по данному материалу.
 
         МАТЕРИАЛ (концепты и код):
@@ -295,6 +293,29 @@ class QuizAgent:
            - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
            - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
            - ДИСТРАКТОРЫ (неверные варианты) должны быть правдоподобны с точки зрения кода (типичные ошибки, неправильные рассуждения).
+           
+           ДЛЯ КАЖДОГО ВОПРОСА типа multiple_choice:
+            1. Сначала определи правильный ответ
+            2. ЗАТЕМ ОБЯЗАТЕЛЬНО вызови tool для генерации 3 дистракторов:
+            
+             {tools_description}
+
+            {{
+              "question": "Что делает __init__?",
+              "correct_answer": "Инициализирует объект",
+              "related_concept": "__init__",
+              "tool_calls": [
+                {{
+                  "tool": "generate_plausible_distractor",
+                  "args": {{
+                    "question": "Что делает __init__?",
+                    "correct_answer": "Инициализирует объект",
+                    "concept_definition": "Конструктор класса...",
+                    "num_needed": 3
+                  }}
+                }}
+              ]
+            }}
 
         2) true_false:
            - Вопрос формулируется как утверждение о коде или концепте.
@@ -312,30 +333,6 @@ class QuizAgent:
 
         ФОРМАТ ВЫВОДА:
         {self._get_code_quiz_format()}
-        
-        {tools_description}
-            
-            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
-            Если не уверен в дистракторах на 100% и они кажутся слабыми (или если хотя бы 1 дистрактор плохой), вызови tool:
-            
-            {{
-              "question": "Что делает __init__?",
-              "correct_answer": "Инициализирует объект",
-              "related_concept": "__init__",
-              "tool_calls": [
-                {{
-                  "tool": "generate_plausible_distractor",
-                  "args": {{
-                    "question": "Что делает __init__?",
-                    "correct_answer": "Инициализирует объект",
-                    "concept_definition": "Конструктор класса...",
-                    "num_needed": 3
-                  }}
-                }}
-              ]
-            }}
-            
-            Если уверен в вопросе - оставь "tool_calls": []
         """
                 )
 
@@ -379,7 +376,8 @@ class QuizAgent:
         prompt = (
             f"""Ты — генератор учебных вопросов для интеллектуальной системы квизов. Сгенерируй {self.questions_count} уникальных образовательных вопросов уровня сложности '{self.difficulty}' на основе концептов:
             {concept_part}
-
+            
+            
             Типы вопросов: ~80% multiple_choice, ~20% true_false
 
             Сложность:
@@ -391,26 +389,9 @@ class QuizAgent:
            - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
            - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
            - ДИСТРАКТОРЫ (неверные варианты) должны быть правдоподобны с точки зрения кода (типичные ошибки, неправильные рассуждения).
-
-            2) true_false:
-           - Вопрос формулируется как утверждение о концепте.
-           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
-           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
-
-            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
-            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
-            - Не задавай вопросы вида "Выберите правильный вариант: True/False" - в таком случае используй тип "true_false".
-            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
-            - Избегай слов "всегда", "никогда" и другие универсальные утверждения
-            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
-            {avoid_part}
-
-            {self._get_standard_quiz_format()}
-            
-            {tools_description}
-            
             ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
-            Если не уверен в дистракторах на 100% и они кажутся слабыми (или если хотя бы 1 дистрактор плохой), вызови tool:
+            ОБЯЗАТЕЛЬНО проверяй дистракторы для каждого вопроса, если не уверен в них на 100% и они кажутся слабыми (или если хотя бы 1 дистрактор плохой), вызови tool:
+            {tools_description}
             
             {{
               "question": "Что делает __init__?",
@@ -430,6 +411,21 @@ class QuizAgent:
             }}
             
             Если уверен в вопросе - оставь "tool_calls": []
+
+            2) true_false:
+           - Вопрос формулируется как утверждение о концепте.
+           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
+           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
+
+            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
+            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
+            - Не задавай вопросы вида "Выберите правильный вариант: True/False" - в таком случае используй тип "true_false".
+            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
+            - Избегай слов "всегда", "никогда" и другие универсальные утверждения
+            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
+            {avoid_part}
+
+            {self._get_standard_quiz_format()}
             """
             )
 
@@ -596,133 +592,153 @@ class QuizAgent:
         Исправляет типичные ошибки LLM (типы, регистр, форматы).
         """
 
-        # 1. ВАЛИДАЦИЯ И НОРМАЛИЗАЦИЯ ТЕКСТА ВОПРОСА
+        # 1. Проверка обязательного поля question
         if not q.get("question") or not str(q.get("question")).strip():
-            logger.warning("[VALIDATION] Empty question text")
+            logger.warning("VALIDATION: Empty question text")
             return False
 
-        # Нормализуем текст вопроса
         q["question"] = str(q["question"]).strip()
 
-        # Опционально: ограничение длины
+        # Ограничение длины вопроса
         if len(q["question"]) > 300:
-            logger.warning(f"[VALIDATION] Question too long ({len(q['question'])} chars), truncating")
+            logger.warning(f"VALIDATION: Question too long ({len(q['question'])} chars), truncating")
             q["question"] = q["question"][:297] + "..."
 
-        # 2. НОРМАЛИЗАЦИЯ ТИПА ВОПРОСА
+        # 2. Нормализация типа вопроса
         raw_type = str(q.get("type", "")).lower().strip()
 
-        # Нормализуем все возможные варианты написания типов
-        if raw_type in ["single_choice", "multi_choice", "choice", "multiple_choice", "multiplechoice"]:
-            q["type"] = "multiple_choice"
-        elif raw_type in ["boolean", "bool", "yes_no", "true_false", "true-false", "truefalse", "tf"]:
-            q["type"] = "true_false"
+        if raw_type in ["single_choice", "multichoice", "choice", "multiple_choice", "multiple-choice"]:
+            qtype = "multiple_choice"
+        elif raw_type in ["boolean", "bool", "yesno", "true_false", "true-false", "truefalse", "tf"]:
+            qtype = "true_false"
         else:
-            # Неизвестный тип - отклоняем вопрос
-            logger.warning(f"[VALIDATION] Unknown type: '{raw_type}' (original: {q.get('type')})")
+            logger.warning(f"VALIDATION: Unknown type '{raw_type}' (original: {q.get('type')})")
             return False
 
-
-        # 3. НОРМАЛИЗАЦИЯ RELATED_CONCEPT
+        # 3. Проверка related_concept
         if not q.get("related_concept") or not str(q.get("related_concept")).strip():
             q["related_concept"] = "General"
         else:
             q["related_concept"] = str(q["related_concept"]).strip()
 
-        # 4. ВАЛИДАЦИЯ MULTIPLE_CHOICE
-        if q["type"] == "multiple_choice":
-            options = q.get("options", [])
-            # Запрет на True/False как варианты в multiple_choice
+        # 4. Валидация options
+        options = q.get("options", [])
+        if not isinstance(options, list):
+            logger.warning(f"VALIDATION: options must be a list, got {type(options).__name__}")
+            return False
+
+        # Очистка пустых options
+        q["options"] = [str(opt).strip() for opt in options if opt is not None and str(opt).strip()]
+
+        if len(q["options"]) < 2:
+            logger.warning(f"VALIDATION: Not enough options after cleanup: {q['options']}")
+            return False
+
+        # true_false с 3+ вариантами → multiple_choice
+        if qtype == "true_false" and len(q["options"]) >= 3:
+            logger.info(f"AUTO-FIX: Converting true_false → multiple_choice (found {len(q['options'])} options)")
+            qtype = "multiple_choice"
+            q["type"] = "multiple_choice"
+
+        # multiple_choice с True/False → true_false
+        if qtype == "multiple_choice" and len(q["options"]) == 2:
             lower_opts = [opt.lower() for opt in q["options"]]
-            if "true" in lower_opts or "false" in lower_opts:
-                logger.warning(f"[VALIDATION] multiple_choice contains True/False options: {q['options']}")
-                return False
+            # Проверяем, что это именно True/False варианты
+            is_bool_pair = (
+                    set(lower_opts) == {"true", "false"} or
+                    set(lower_opts) == {"да", "нет"} or
+                    set(lower_opts) == {"yes", "no"} or
+                    set(lower_opts) == {"верно", "неверно"}
+            )
 
-            # Проверка что options - это список
-            if not isinstance(options, list):
-                logger.warning(f"[VALIDATION] options must be a list, got {type(options).__name__}")
-                return False
+            if is_bool_pair:
+                logger.info(
+                    f"AUTO-FIX: Converting multiple_choice → true_false (detected bool options: {q['options']})")
+                qtype = "true_false"
+                q["type"] = "true_false"
+                # Нормализуем опции к стандартному формату
+                q["options"] = ["True", "False"]
 
-            # Проверка наличия correct_answer
-            if "correct_answer" not in q or q["correct_answer"] is None:
-                logger.warning("[VALIDATION] Missing 'correct_answer' field")
-                return False
+        # ========================================================================
+        # ВАЛИДАЦИЯ ПО ТИПУ
+        # ========================================================================
 
-            # Нормализация опций: убираем пустые строки и None
-            q["options"] = [
-                str(opt).strip()
-                for opt in options
-                if opt is not None and str(opt).strip()
-            ]
+        if qtype == "multiple_choice":
+            # 5. Проверка, что multiple_choice НЕ содержит только True/False
+            # (этот блок не особо нужен, так как такие случаи были обработаны чуть выше)
+            # Но оставим для случаев, когда options > 2 и содержат True/False среди других
+            lower_opts = [opt.lower() for opt in q["options"]]
+            if len(q["options"]) > 2:
+                # Проверяем, что нет смешивания True/False с другими вариантами
+                has_true_false = any(opt in ["true", "false", "да", "нет"] for opt in lower_opts)
+                if has_true_false:
+                    logger.warning(
+                        f"VALIDATION: multiple_choice shouldn't mix True/False with other options: {q['options']}")
+                    # Можно оставить как есть или отфильтровать True/False
 
-            # Проверка что после очистки осталось минимум 2 опции
+            # 6. Проверка минимум 2 варианта
             if len(q["options"]) < 2:
-                logger.warning(f"[VALIDATION] Not enough options after cleanup: {q['options']}")
+                logger.warning(f"VALIDATION: Not enough unique options: {q['options']}")
                 return False
 
-            # Дедупликация опций (регистронезависимая)
-            seen_lower = {}
-            unique_options = []
-            for opt in q["options"]:
-                opt_lower = opt.lower()
-                if opt_lower not in seen_lower:
-                    seen_lower[opt_lower] = opt
-                    unique_options.append(opt)
+        elif qtype == "true_false":
+            # 7. Для true_false нормализуем options к ["True", "False"]
+            if q["options"] != ["True", "False"]:
+                logger.info(f"AUTO-FIX: Normalizing true_false options from {q['options']} → ['True', 'False']")
+                q["options"] = ["True", "False"]
 
-            if len(unique_options) != len(q["options"]):
-                logger.debug(
-                    f"[VALIDATION] Removed {len(q['options']) - len(unique_options)} duplicate options"
-                )
-                q["options"] = unique_options
+            # 8. Нормализация булевых ответов
+            ans_str = str(q.get("correct_answer", "")).lower().strip()
 
-            # Проверка минимального количества уникальных опций
-            if len(q["options"]) < 2:
-                logger.warning(f"[VALIDATION] Not enough unique options: {q['options']}")
-                return False
-
-            # Нормализация correct_answer
-            q["correct_answer"] = str(q["correct_answer"]).strip()
-
-            if not q["correct_answer"]:
-                logger.warning("[VALIDATION] Empty correct_answer after normalization")
-                return False
-
-            # РЕГИСТРОНЕЗАВИСИМОЕ сравнение correct_answer с options
-            answer_lower = q["correct_answer"].lower()
-            options_lower = [opt.lower() for opt in q["options"]]
-
-            if answer_lower not in options_lower:
-                logger.warning(
-                    f"[VALIDATION] correct_answer '{q['correct_answer']}' "
-                    f"not in options {q['options']}"
-                )
-                return False
-
-            # Приводим correct_answer к точному написанию из options
-            # (сохраняем регистр из списка вариантов)
-            matching_index = options_lower.index(answer_lower)
-            q["correct_answer"] = q["options"][matching_index]
-
-        # 5. ВАЛИДАЦИЯ TRUE_FALSE
-        elif q["type"] == "true_false":
-            # Проверка наличия correct_answer
-            if "correct_answer" not in q or q["correct_answer"] is None:
-                logger.warning("[VALIDATION] Missing 'correct_answer' field")
-                return False
-
-            # Нормализация ответа (поддержка разных форматов)
-            ans_str = str(q["correct_answer"]).lower().strip()
-
-            if ans_str in ["true", "1", "yes", "верно", "да", "истина", "правда"]:
+            # Расширенный список булевых значений
+            if ans_str in ["true", "1", "yes", "да", "верно", "правда", "истина", "т", "y"]:
                 q["correct_answer"] = "True"
-            elif ans_str in ["false", "0", "no", "неверно", "нет", "ложь"]:
+            elif ans_str in ["false", "0", "no", "нет", "неверно", "ложь", "ф", "n"]:
                 q["correct_answer"] = "False"
             else:
-                logger.warning(f"[VALIDATION] Invalid bool answer: '{ans_str}'")
+                logger.warning(f"VALIDATION: Invalid bool answer '{ans_str}' for true_false")
                 return False
 
-            # Принудительно ставим стандартные опции
-            q["options"] = ["True", "False"]
+        # 9. Проверка наличия correct_answer
+        if "correct_answer" not in q or q["correct_answer"] is None:
+            logger.warning("VALIDATION: Missing correct_answer field")
+            return False
+
+        # 10. Нормализация correct_answer
+        q["correct_answer"] = str(q["correct_answer"]).strip()
+
+        if not q["correct_answer"]:
+            logger.warning("VALIDATION: Empty correct_answer after normalization")
+            return False
+
+        # 11. Проверка, что correct_answer есть в options
+        answer_lower = q["correct_answer"].lower()
+        options_lower = [opt.lower() for opt in q["options"]]
+
+        if answer_lower not in options_lower:
+            logger.warning(
+                f"VALIDATION: correct_answer '{q['correct_answer']}' "
+                f"not in options {q['options']}"
+            )
+            return False
+
+        # 12. Удаление дубликатов в options (сохраняя порядок)
+        seen_lower = {}
+        unique_options = []
+        for opt in q["options"]:
+            opt_lower = opt.lower()
+            if opt_lower not in seen_lower:
+                seen_lower[opt_lower] = opt
+                unique_options.append(opt)
+
+        if len(unique_options) != len(q["options"]):
+            logger.debug(f"VALIDATION: Removed {len(q['options']) - len(unique_options)} duplicate options")
+            q["options"] = unique_options
+
+        # 13. Финальная проверка минимального количества options
+        if len(q["options"]) < 2:
+            logger.warning(f"VALIDATION: Not enough unique options: {q['options']}")
+            return False
 
         return True
 

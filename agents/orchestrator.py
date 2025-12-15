@@ -456,7 +456,7 @@ class OrchestratorAgent:
             # если QuizAgent еще не использует generate(temperature=...)
 
             original_temp = self.client.gigachat.temperature
-            self.client.gigachat.temperature = 0.65  # Нагреваем для креатива
+            self.client.gigachat.temperature = 0.65  # Охлаждаем чтобы замерз
 
             quiz = self.quiz_generator.generate_questions(
                 concepts=concepts,
