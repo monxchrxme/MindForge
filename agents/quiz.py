@@ -7,7 +7,6 @@ from agents.tools_quiz.distractor_generator import DistractorGeneratorTool
 
 logger = logging.getLogger(__name__)
 
-
 class QuizAgent:
     """
     Агент-экзаменатор. Использует LLM для генерации уникальных вопросов по концептам.
@@ -125,6 +124,7 @@ class QuizAgent:
             # Проверяем, есть ли tool calls
             tool_calls = q_data.get("tool_calls", [])
 
+
             if not tool_calls:
                 logger.debug(f"[QUIZ] Question #{idx} did NOT request tools_quiz")
 
@@ -177,6 +177,7 @@ class QuizAgent:
 
         return question_data
 
+
     def _direct_text_prompt(self, text: str, avoid_history: List[str], count: int) -> str:
         """
         Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
@@ -188,18 +189,17 @@ class QuizAgent:
         avoid_part = ""
         if avoid_history:
             recent_history = list(avoid_history)[-15:]
-            avoid_part = "НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n" + "\n".join(
-                [f"- {q}" for q in recent_history]) + "\n"
+            avoid_part = "НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
 
         return (
             f"""
             Ты — генератор учебных вопросов для системы квизов. Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}' на основе текста заметки:
-
+                    
             {text[:2000]}
-
+            
             Типы вопросов: ~80% multiple_choice, ~20% true_false
-
-
+            
+            
             1) multiple_choice:
            - Если необходимо сделать вопрос с нескольки правильными вариантами ответа, используй следующие способы (в качестве последнего варианта ответа добавь: "Верно все вышеперечисленное" | "Верны только вариант 1 и 2" и другие похожие формулировки)
            - Вопрос должен требовать АНАЛИЗА кода или понимания концепта, а не дословного чтения.
@@ -219,14 +219,14 @@ class QuizAgent:
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
             КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
             {avoid_part}
-
+            
             {self._get_direct_quiz_format()}
-
+            
             {tools_description}
-
+            
             ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
             Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
-
+            
             {{
               "question": "Что делает __init__?",
               "correct_answer": "Инициализирует объект",
@@ -243,10 +243,12 @@ class QuizAgent:
                 }}
               ]
             }}
-
+            
             Если уверен в вопросе — оставь "tool_calls": []
             """
         )
+
+
 
     def _code_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
         """
@@ -311,12 +313,12 @@ class QuizAgent:
 
         ФОРМАТ ВЫВОДА:
         {self._get_code_quiz_format()}
-
+        
         {tools_description}
-
+            
             ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
             Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
-
+            
             {{
               "question": "Что делает __init__?",
               "correct_answer": "Инициализирует объект",
@@ -333,7 +335,7 @@ class QuizAgent:
                 }}
               ]
             }}
-
+            
             Если уверен в вопросе — оставь "tool_calls": []
         """
                 )
@@ -405,12 +407,12 @@ class QuizAgent:
             {avoid_part}
 
             {self._get_standard_quiz_format()}
-
+            
             {tools_description}
-
+            
             ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
             Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
-
+            
             {{
               "question": "Что делает __init__?",
               "correct_answer": "Инициализирует объект",
@@ -427,10 +429,10 @@ class QuizAgent:
                 }}
               ]
             }}
-
+            
             Если уверен в вопросе — оставь "tool_calls": []
             """
-        )
+            )
 
         logger.info(f"[STEP] Prompt ready")
         return prompt
@@ -476,7 +478,7 @@ class QuizAgent:
         """
         return (
             r"""СТРОГИЙ формат JSON (массив объектов):
-
+    
             [
               {
                 "question": "Что выведет этот код?",
@@ -497,22 +499,22 @@ class QuizAgent:
                 "concept_definition": "..."
               }
             ]
-
+    
             КРИТИЧЕСКИ ВАЖНО ДЛЯ ПОЛЯ 'code_context':
             1. Код должен быть ОДНОЙ СТРОКОЙ в JSON
             2. Переносы строк заменяй на \n (обратный слеш + буква n)
             3. Табуляцию заменяй на \t или 4 пробела
             4. НЕ используй реальные переносы строк внутри строки!
             5. НЕ используй тройные бэктики (```) и HTML теги (<br>, de> и т.д.)
-
+    
             ПРИМЕРЫ ПРАВИЛЬНОГО ФОРМАТИРОВАНИЯ code_context:
             ПРАВИЛЬНО: "code_context": "class A:\n    def method(self):\n        return 42"
-
+            
             НЕПРАВИЛЬНО (программа упадет с ошибкой JSON!):
             "code_context": "class A:
                 def method(self):
                     return 42"
-
+    
             ОБЩИЕ ТРЕБОВАНИЯ:
             1. Возвращай ТОЛЬКО валидный JSON-массив.
             2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
@@ -549,7 +551,7 @@ class QuizAgent:
                 "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."
               }
             ]
-
+               
             ВАЖНО: 
             1. Возвращай ТОЛЬКО валидный JSON-массив.
             2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
@@ -558,6 +560,8 @@ class QuizAgent:
             5. Поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
             """
         )
+
+
 
     def _validate_and_filter_questions(self, raw_questions: Any) -> List[Dict[str, Any]]:
         """
@@ -618,6 +622,7 @@ class QuizAgent:
             # Неизвестный тип - отклоняем вопрос
             logger.warning(f"[VALIDATION] Unknown type: '{raw_type}' (original: {q.get('type')})")
             return False
+
 
         # 3. НОРМАЛИЗАЦИЯ RELATED_CONCEPT
         if not q.get("related_concept") or not str(q.get("related_concept")).strip():
@@ -722,6 +727,7 @@ class QuizAgent:
 
         return True
 
+
     def _validate_unique(
             self,
             questions: List[Dict[str, Any]],
@@ -751,6 +757,8 @@ class QuizAgent:
             seen_in_batch.add(text_lower)
 
         return unique
+
+
 
     def _post_process_questions(
             self,
