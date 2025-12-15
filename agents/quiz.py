@@ -1,10 +1,12 @@
-#TODO Написать нормальный промт для случаем: code и direct
 from typing import List, Dict, Any
 from services.gigachat_client import GigaChatClient
 import uuid
 import logging
+from agents.tools_quiz.registry import ToolRegistry
+from agents.tools_quiz.distractor_generator import DistractorGeneratorTool
 
 logger = logging.getLogger(__name__)
+
 
 class QuizAgent:
     """
@@ -27,6 +29,16 @@ class QuizAgent:
         self.questions_count = questions_count
         self.difficulty = difficulty
         logger.info(f"QuizAgent initialized: questions_count={questions_count}, difficulty={difficulty}")
+
+        self.tool_registry = ToolRegistry()
+        self._register_tools()
+        logger.info(f"QuizAgent initialized with {len(self.tool_registry._tools)} tools_quiz")
+
+    def _register_tools(self):
+        """Регистрирует доступные инструменты"""
+        self.tool_registry.register(
+            DistractorGeneratorTool(self.client)
+        )
 
     def generate_questions(
             self,
@@ -66,61 +78,175 @@ class QuizAgent:
 
     def _execute_pipeline(
             self,
-            prompt: str,
-            concepts: List[Dict],
-            history: List[str]
+            prompt,
+            concepts,
+            history
     ) -> List[Dict]:
         """
-        Общий конвейер обработки: LLM -> JSON -> Validate -> Unique -> PostProcess
+        Pipeline с поддержкой tools_quiz: вызов LLM → tool calls → валидация → дедупликация → постобработка
         """
-        # 1. Вызов LLM
         try:
-            raw_questions = self.client.generate_json(prompt)
+            # 1. Генерация LLM
+            raw_response = self.client.generate_json(prompt)
+
+            # 2. Обработка tool calls (если агент их запросил)
+            questions_with_tools = raw_response if isinstance(raw_response, list) else raw_response.get("questions", [])
+            processed_questions = self._process_tool_calls(questions_with_tools, concepts)
+
+            # 3. Валидация и фильтрация
+            valid_questions = self._validate_and_filter_questions(processed_questions)
+
+            # 4. Дедупликация
+            unique_questions = self._validate_unique(valid_questions, history)
+
+            # 5. Постобработка и обогащение
+            final_questions = self._post_process_questions(unique_questions, concepts)
+
+            return final_questions
+
         except Exception as e:
-            logger.error(f"[ERROR] LLM generation failed: {e}")
+            logger.error(f"Pipeline execution failed: {e}", exc_info=True)
             return []
 
-        # 2. Валидация структуры (общая для всех)
-        valid_questions = self._validate_and_filter_questions(raw_questions)
+    def _process_tool_calls(self, questions_data: List[Dict], concepts: List[Dict]) -> List[Dict]:
+        """
+        Обрабатывает tool calls от агента.
 
-        # 3. Фильтрация дублей в текущей пачке
-        unique_questions = self._validate_unique(valid_questions, history)
+        Args:
+            questions_data: Список вопросов (может содержать tool_calls)
+            concepts: Концепты для контекста
 
-        # 4. Пост-процессинг (UUID, Definitions)
-        final_questions = self._post_process_questions(unique_questions, concepts)
+        Returns:
+            Список вопросов с примененными результатами tools_quiz
+        """
+        processed = []
 
-        logger.info(f"[FINISH] Pipeline completed. Generated {len(final_questions)} questions.")
-        return final_questions
+        for idx, q_data in enumerate(questions_data):
+            # Проверяем, есть ли tool calls
+            tool_calls = q_data.get("tool_calls", [])
+
+            if not tool_calls:
+                logger.debug(f"[QUIZ] Question #{idx} did NOT request tools_quiz")
+
+            if tool_calls:
+                logger.info(f"[QUIZ] Question #{idx} requested {len(tool_calls)} tool(s)")
+
+                # Выполняем каждый tool call
+                for tool_call in tool_calls:
+                    tool_name = tool_call.get("tool")
+                    tool_args = tool_call.get("args", {})
+
+                    # Выполняем tool
+                    result = self.tool_registry.execute_tool(tool_name, **tool_args)
+
+                    # Применяем результат
+                    if result.get("success"):
+                        q_data = self._apply_tool_result(q_data, result)
+                    else:
+                        logger.warning(f"[QUIZ] Tool '{tool_name}' failed: {result.get('error', 'Unknown error')}")
+
+                # Очищаем технические поля
+                q_data.pop("tool_calls", None)
+                q_data.pop("problem", None)
+
+            processed.append(q_data)
+
+        return processed
+
+    def _apply_tool_result(self, question_data: Dict, tool_result: Dict) -> Dict:
+        """
+        Применяет результат tool к вопросу.
+
+        Args:
+            question_data: Данные вопроса
+            tool_result: Результат выполнения tool
+
+        Returns:
+            Обновленные данные вопроса
+        """
+        # Если tool вернул дистракторы
+        if "distractors" in tool_result:
+            distractors = tool_result["distractors"]
+            correct = question_data.get("correct_answer", "")
+
+            # Формируем options: правильный ответ + дистракторы
+            question_data["options"] = [correct] + distractors[:3]
+            question_data["type"] = "multiple_choice"
+
+            logger.info("[QUIZ] Applied tool-generated distractors")
+
+        return question_data
 
     def _direct_text_prompt(self, text: str, avoid_history: List[str], count: int) -> str:
         """
         Промпт для генерации вопросов напрямую по тексту (без выделения концептов).
         """
+
+        tools_description = self.tool_registry.get_tools_description()
+
         # Формируем блок истории, которую нужно избегать
         avoid_part = ""
         if avoid_history:
             recent_history = list(avoid_history)[-15:]
-            avoid_part = "НЕ создавай вопросы, похожие на эти:\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
+            avoid_part = "НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n" + "\n".join(
+                [f"- {q}" for q in recent_history]) + "\n"
 
         return (
             f"""
             Ты — генератор учебных вопросов для системы квизов. Сгенерируй {self.questions_count} уникальных вопросов уровня сложности '{self.difficulty}' на основе текста заметки:
-                    
+
             {text[:2000]}
-            
+
             Типы вопросов: ~80% multiple_choice, ~20% true_false
-            
-            Требования:
-            - Дистракторы должны быть правдоподобны
+
+
+            1) multiple_choice:
+           - Если необходимо сделать вопрос с нескольки правильными вариантами ответа, используй следующие способы (в качестве последнего варианта ответа добавь: "Верно все вышеперечисленное" | "Верны только вариант 1 и 2" и другие похожие формулировки)
+           - Вопрос должен требовать АНАЛИЗА кода или понимания концепта, а не дословного чтения.
+           - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
+           - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
+           - ДИСТРАКТОРЫ (неверные варианты) должны быть правдоподобны с точки зрения кода (типичные ошибки, неправильные рассуждения).
+
+            2) true_false:
+           - Вопрос формулируется как утверждение о коде или концепте.
+           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
+           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
+
+            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
+            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
+            - Не задавай вопросы вида "Выберите правильный вариант: True/False" — в таком случае используй тип "true_false".
+            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
-            - НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):
+            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
             {avoid_part}
-            
+
             {self._get_direct_quiz_format()}
+
+            {tools_description}
+
+            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
+            Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
+
+            {{
+              "question": "Что делает __init__?",
+              "correct_answer": "Инициализирует объект",
+              "related_concept": "__init__",
+              "tool_calls": [
+                {{
+                  "tool": "generate_plausible_distractor",
+                  "args": {{
+                    "question": "Что делает __init__?",
+                    "correct_answer": "Инициализирует объект",
+                    "concept_definition": "Конструктор класса...",
+                    "num_needed": 3
+                  }}
+                }}
+              ]
+            }}
+
+            Если уверен в вопросе — оставь "tool_calls": []
             """
         )
-
-
 
     def _code_prompt(self, concepts: List[Dict], avoid_history: List[str]) -> str:
         """
@@ -139,6 +265,8 @@ class QuizAgent:
                     "НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n"
                     + "\n".join([f"- {q}" for q in shortened_history]) + "\n"
             )
+
+        tools_description = self.tool_registry.get_tools_description()
 
         # Формируем контекст: Теория + Код
         context_part = ""
@@ -161,6 +289,7 @@ class QuizAgent:
         ТИПЫ ВОПРОСОВ (~80% multiple_choice, ~20% true_false):
 
         1) multiple_choice:
+           - Если необходимо сделать вопрос с нескольки правильными вариантами ответа, используй следующие способы (в качестве последнего варианта ответа добавь: "Верно все вышеперечисленное" | "Верны только вариант 1 и 2" и другие похожие формулировки)           
            - Вопрос должен требовать АНАЛИЗА кода или понимания концепта, а не дословного чтения.
            - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
            - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
@@ -173,15 +302,39 @@ class QuizAgent:
 
         ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
         - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
-        - code snippet должен четко соответствовать вопросу. Не надо вставлять огромные куски кода, вставляй только то, что необходимо.
-        - 
+        - code snippet должен четко соответствовать вопросу. НЕ НАДО вставлять огромные куски кода, вставляй только то, что НЕОБХОДИМО.
         - Не задавай вопросы вида "Выберите правильный вариант: True/False" — в таком случае используй тип "true_false".
-        - Старайся проверять ПОНЯТИЕ и УМЕНИЕ ДУМАТЬ над кодом, а не поверхностное чтение.
-
+        - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ над кодом, а не поверхностное чтение.
+        - Избегай слов "всегда", "никогда" и другие универсальные утверждения
+        КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
         {avoid_part}
 
         ФОРМАТ ВЫВОДА:
         {self._get_code_quiz_format()}
+
+        {tools_description}
+
+            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
+            Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
+
+            {{
+              "question": "Что делает __init__?",
+              "correct_answer": "Инициализирует объект",
+              "related_concept": "__init__",
+              "tool_calls": [
+                {{
+                  "tool": "generate_plausible_distractor",
+                  "args": {{
+                    "question": "Что делает __init__?",
+                    "correct_answer": "Инициализирует объект",
+                    "concept_definition": "Конструктор класса...",
+                    "num_needed": 3
+                  }}
+                }}
+              ]
+            }}
+
+            Если уверен в вопросе — оставь "tool_calls": []
         """
                 )
 
@@ -220,6 +373,8 @@ class QuizAgent:
             f"{c['term']}: {c['definition']}" for c in concepts
         ])
 
+        tools_description = self.tool_registry.get_tools_description()
+
         prompt = (
             f"""Ты — генератор учебных вопросов для интеллектуальной системы квизов. Сгенерируй {self.questions_count} уникальных образовательных вопросов уровня сложности '{self.difficulty}' на основе концептов:
             {concept_part}
@@ -229,14 +384,53 @@ class QuizAgent:
             Сложность:
             - в случае автоматической сложности для каждого вопроса постарайся, чтобы 50% - высокая сложность (hard), 30% - средняя сложность (medium), 20% - легкая сложность (easy)
 
-            Требования:
-            - Дистракторы должны быть правдоподобны
+            1) multiple_choice:
+           - Если необходимо сделать вопрос с нескольки правильными вариантами ответа, используй следующие способы (в качестве последнего варианта ответа добавь: "Верно все вышеперечисленное" | "Верны только вариант 1 и 2" и другие похожие формулировки)
+           - Вопрос должен требовать АНАЛИЗА кода или понимания концепта, а не дословного чтения.
+           - НЕЛЬЗЯ просто переформулировать фразу из текста и сделать её правильным вариантом.
+           - НЕЛЬЗЯ использовать варианты ответа вида ["True", "False"] для multiple_choice.
+           - ДИСТРАКТОРЫ (неверные варианты) должны быть правдоподобны с точки зрения кода (типичные ошибки, неправильные рассуждения).
+
+            2) true_false:
+           - Вопрос формулируется как утверждение о концепте.
+           - Утверждение должно быть НЕОЧЕВИДНЫМ: нужно подумать, а не просто прочитать одну строку.
+           - НЕЛЬЗЯ делать утверждение тривиальным (например, "Этот код содержит ключевое слово class").
+
+            ОБЩИЕ ТРЕБОВАНИЯ К КАЧЕСТВУ:
+            - Не задавай вопросы, где правильный ответ дословно повторяет часть вопроса.
+            - Не задавай вопросы вида "Выберите правильный вариант: True/False" — в таком случае используй тип "true_false".
+            - Старайся проверять ПОНИМАНИЕ и УМЕНИЕ ДУМАТЬ, а не поверхностное чтение.
             - Избегай слов "всегда", "никогда" и другие универсальные утверждения
+            КРИТИЧЕСКИ ВАЖНО: ВСЕ ОТВЕТЫ СТРОГО НА РУССКОМ ЯЗЫКЕ!
             {avoid_part}
 
             {self._get_standard_quiz_format()}
+
+            {tools_description}
+
+            ИСПОЛЬЗОВАНИЕ ИНСТРУМЕНТОВ:
+            Если не уверен в дистракторах на 100% и они кажутся слабыми, лучше вызови tool:
+
+            {{
+              "question": "Что делает __init__?",
+              "correct_answer": "Инициализирует объект",
+              "related_concept": "__init__",
+              "tool_calls": [
+                {{
+                  "tool": "generate_plausible_distractor",
+                  "args": {{
+                    "question": "Что делает __init__?",
+                    "correct_answer": "Инициализирует объект",
+                    "concept_definition": "Конструктор класса...",
+                    "num_needed": 3
+                  }}
+                }}
+              ]
+            }}
+
+            Если уверен в вопросе — оставь "tool_calls": []
             """
-            )
+        )
 
         logger.info(f"[STEP] Prompt ready")
         return prompt
@@ -257,13 +451,21 @@ class QuizAgent:
                 "options": ["В1", "В2", "В3", "В4"], 
                 "correct_answer": "В2",
                 "related_concept": "тема вопроса (термин или ключевая фраза)"
+              },
+              {
+                "question": "Текст вопроса (макс 200 символов, утверждение на которое можно ответить True/False)",
+                "code_context": "(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.",
+                "type": "true_false", 
+                "options": ["True", "False"],
+                "correct_answer": "False",
+                "related_concept": "тема вопроса (термин или ключевая фраза)",
               }
             ]
             ВАЖНО:
             1. Возвращай ТОЛЬКО валидный JSON-массив.
             2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
             3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.
-            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, при режиме 'true_false' должно быть два варианта ["True", "False"]
+            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, один из которых является correct_answer, при режиме 'true_false' должно быть два варианта ["True", "False"]
             5. Поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
             """
         )
@@ -274,7 +476,7 @@ class QuizAgent:
         """
         return (
             r"""СТРОГИЙ формат JSON (массив объектов):
-    
+
             [
               {
                 "question": "Что выведет этот код?",
@@ -284,29 +486,38 @@ class QuizAgent:
                 "correct_answer": "42",
                 "related_concept": "Функции",
                 "concept_definition": "..."
+              },
+              {
+                "question": "Текст вопроса (макс 200 символов, утверждение на которое можно ответить True/False)",
+                "code_context": "(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.",
+                "type": "true_false", 
+                "options": ["True", "False"],
+                "correct_answer": "False",
+                "related_concept": "тема вопроса (термин или ключевая фраза)",
+                "concept_definition": "..."
               }
             ]
-    
+
             КРИТИЧЕСКИ ВАЖНО ДЛЯ ПОЛЯ 'code_context':
             1. Код должен быть ОДНОЙ СТРОКОЙ в JSON
             2. Переносы строк заменяй на \n (обратный слеш + буква n)
             3. Табуляцию заменяй на \t или 4 пробела
             4. НЕ используй реальные переносы строк внутри строки!
             5. НЕ используй тройные бэктики (```) и HTML теги (<br>, de> и т.д.)
-    
+
             ПРИМЕРЫ ПРАВИЛЬНОГО ФОРМАТИРОВАНИЯ code_context:
             ПРАВИЛЬНО: "code_context": "class A:\n    def method(self):\n        return 42"
-            
+
             НЕПРАВИЛЬНО (программа упадет с ошибкой JSON!):
             "code_context": "class A:
                 def method(self):
                     return 42"
-    
+
             ОБЩИЕ ТРЕБОВАНИЯ:
             1. Возвращай ТОЛЬКО валидный JSON-массив.
             2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
             3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.
-            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, при режиме 'true_false' должно быть два варианта ["True", "False"]
+            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, один из которых является correct_answer, при режиме 'true_false' должно быть два варианта ["True", "False"]
             5. Поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
                 """
         )
@@ -327,19 +538,26 @@ class QuizAgent:
                 "correct_answer": "В2",
                 "related_concept": "тема вопроса (термин или ключевая фраза)",
                 "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."
+              },
+              {
+                "question": "Текст вопроса (макс 200 символов, утверждение на которое можно ответить True/False)",
+                "code_context": "(ОПЦИОНАЛЬНО) Кусок кода, к которому относится вопрос. Если кода нет - null или пустая строка.",
+                "type": "true_false", 
+                "options": ["True", "False"],
+                "correct_answer": "False",
+                "related_concept": "тема вопроса (термин или ключевая фраза)",
+                "concept_definition": "ОБЯЗАТЕЛЬНО: Краткое теоретическое объяснение ответа."
               }
             ]
-               
+
             ВАЖНО: 
             1. Возвращай ТОЛЬКО валидный JSON-массив.
             2. Не добавляй никаких комментариев, Markdown-разметки и блоков (```)
             3. Поле 'correct_answer' должно ТОЧНО совпадать с одним из элементов 'options'.
-            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, при режиме 'true_false' должно быть два варианта ["True", "False"]
+            4. При режиме 'multiple_choice' в поле 'options' ДОЛЖНО БЫТЬ СТРОГО 4 варианта ответа, один из которых является correct_answer, при режиме 'true_false' должно быть два варианта ["True", "False"]
             5. Поле 'type' может быть ТОЛЬКО вариантами из списка: ["multiple_choice", "true_false"]
             """
         )
-
-
 
     def _validate_and_filter_questions(self, raw_questions: Any) -> List[Dict[str, Any]]:
         """
@@ -400,7 +618,6 @@ class QuizAgent:
             # Неизвестный тип - отклоняем вопрос
             logger.warning(f"[VALIDATION] Unknown type: '{raw_type}' (original: {q.get('type')})")
             return False
-
 
         # 3. НОРМАЛИЗАЦИЯ RELATED_CONCEPT
         if not q.get("related_concept") or not str(q.get("related_concept")).strip():
@@ -505,7 +722,6 @@ class QuizAgent:
 
         return True
 
-
     def _validate_unique(
             self,
             questions: List[Dict[str, Any]],
@@ -535,8 +751,6 @@ class QuizAgent:
             seen_in_batch.add(text_lower)
 
         return unique
-
-
 
     def _post_process_questions(
             self,
