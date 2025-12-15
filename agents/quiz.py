@@ -86,7 +86,7 @@ class QuizAgent:
         """
         try:
             # 1. Генерация LLM
-            raw_response = self.client.generate_json(prompt)
+            raw_response = self.client.generate_json(prompt, temperature=0.65)
 
             # 2. Обработка tool calls (если агент их запросил)
             questions_with_tools = raw_response if isinstance(raw_response, list) else raw_response.get("questions", [])

@@ -104,7 +104,7 @@ class ParserAgent:
         )
 
         try:
-            result = self.client.generate_json(prompt)
+            result = self.client.generate_json(prompt, temperature=0.2)
 
             # DEBUG: Логирование сырого результата от LLM
             import json
@@ -215,7 +215,7 @@ class ParserAgent:
         )
 
         try:
-            result = self.client.generate_json(prompt)
+            result = self.client.generate_json(prompt, temperature=0.2)
 
             # >>> ВСТАВИТЬ ЛОГИРОВАНИЕ ЗДЕСЬ <<<
             import json
@@ -280,7 +280,7 @@ class ParserAgent:
 
         try:
             # Используем обычный generate вместо generate_json для текстового ответа
-            enriched = self.client.generate(enrichment_prompt)
+            enriched = self.client.generate(enrichment_prompt, temperature=0.2)
 
             # Очистка от возможных артефактов форматирования
             enriched = enriched.strip().replace('\n\n', ' ').replace('  ', ' ')
