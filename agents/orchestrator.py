@@ -450,22 +450,12 @@ class OrchestratorAgent:
             history_to_use = self.vector_history.get_recent_questions(limit=15)
 
         try:
-
-            # так как QuizAgent использует self.client внутри.
-            # Но мы можем временно поменять температуру клиента прямо здесь,
-            # если QuizAgent еще не использует generate(temperature=...)
-
-            original_temp = self.client.gigachat.temperature
-            self.client.gigachat.temperature = 0.65  # Нагреваем для креатива
-
             quiz = self.quiz_generator.generate_questions(
                 concepts=concepts,
                 avoid_history=history_to_use,
                 raw_text=raw_text,
                 mode=mode
             )
-
-            self.client.gigachat.temperature = original_temp  # Возвращаем холод
 
             if not quiz:
                 return "QuizAgent returned empty list."

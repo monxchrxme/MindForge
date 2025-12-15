@@ -25,7 +25,7 @@ class VectorHistoryManager:
         # Используем модель, которая понимает РУССКИЙ язык
         # Она скачается один раз при первом запуске (~500MB)
         sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="cointegrated/rubert-tiny2" #"intfloat/multilingual-e5-base" #cointegrated/rubert-tiny2 - легче
+            model_name="cointegrated/rubert-tiny2" # "intfloat/multilingual-e5-base" # cointegrated/rubert-tiny2 - легче
         )
 
         self.collection = self.client.get_or_create_collection(
@@ -123,6 +123,7 @@ class VectorHistoryManager:
     def get_recent_questions(self, limit: int = 15) -> List[str]:
         """
         Возвращает последние N вопросов для контекста в промпте.
+        Гарантирует порядок от новых к старым, используя seq_id. [web:29]
 
         Args:
             limit: Количество последних вопросов
@@ -130,16 +131,37 @@ class VectorHistoryManager:
         Returns:
             Список текстов вопросов
         """
-        # ChromaDB не гарантирует порядок, поэтому можно:
-        # 1) Хранить timestamp в metadata и сортировать
-        # 2) Просто вернуть случайную выборку (для "избегай этих тем")
-
         total = self.collection.count()
         if total == 0:
             return []
 
+        # Эвристика: чтобы не сканировать всю базу, берем только "хвост" по seq_id
+        # current_seq_id хранит id последнего добавленного элемента.
+        # Нам нужны элементы с seq_id > (current_seq_id - limit)
+        min_seq_id = max(0, self.current_seq_id - limit)
+
+        # Запрашиваем документы и метаданные с фильтрацией
+        # include=["documents", "metadatas"] обязательно, чтобы получить метаданные для сортировки
         results = self.collection.get(
-            limit=min(limit, total)
+            where={"seq_id": {"$gt": min_seq_id}},
+            include=["documents", "metadatas"]
         )
 
-        return results['documents'] if results['documents'] else []
+        if not results['documents']:
+            return []
+
+        # Объединяем документ и метаданные для сортировки
+        # results['documents'] и results['metadatas'] идут параллельно
+        paired_results = zip(results['documents'], results['metadatas'])
+
+        # Сортируем: берем seq_id из метаданных, сортируем по убыванию (сначала новые)
+        sorted_results = sorted(
+            paired_results,
+            key=lambda x: x[1].get('seq_id', 0),
+            reverse=True
+        )
+
+        # Извлекаем только тексты, ограничиваем лимитом
+        recent_docs = [doc for doc, meta in sorted_results[:limit]]
+
+        return recent_docs
