@@ -63,7 +63,7 @@ class GigaChatClient:
         self.total_completion_tokens: int = 0
         self.total_requests: int = 0
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, temperature: float = None) -> str:
         """
         Универсальный метод для получения текстового результата (RAW STRING).
         Используется для свободной генерации текста без структурированного формата.
@@ -84,7 +84,16 @@ class GigaChatClient:
             logger.debug(f"Generating text response (prompt length: {len(prompt)} chars)")
 
             # Вызов модели через LangChain
+            original_temp = self.gigachat.temperature
+            if temperature is not None:
+                self.gigachat.temperature = temperature
+
+            # Вызов
             response = self.gigachat.invoke(prompt)
+
+            # Возврат исходной температуры (важно!)
+            if temperature is not None:
+                self.gigachat.temperature = original_temp
 
             # Извлечение текста из ответа
             if hasattr(response, 'content'):
@@ -106,7 +115,8 @@ class GigaChatClient:
     def generate_json(
             self,
             prompt: str,
-            retry_attempts: int = 3
+            retry_attempts: int = 3,
+            temperature: float = None
     ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Запрос к GigaChat с ожиданием JSON-ответа.
@@ -122,7 +132,7 @@ class GigaChatClient:
                 logger.debug(f"Generating JSON response (attempt {attempt}/{retry_attempts})")
 
                 # 1. Получение сырого текста
-                raw_response = self.generate(prompt)
+                raw_response = self.generate(prompt, temperature=temperature)
 
                 # ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ
                 logger.info(f"--- RAW RESPONSE (Attempt {attempt}) ---")
