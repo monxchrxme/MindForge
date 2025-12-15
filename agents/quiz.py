@@ -187,7 +187,7 @@ class QuizAgent:
         # Формируем блок истории, которую нужно избегать
         avoid_part = ""
         if avoid_history:
-            recent_history = list(avoid_history)[-15:]
+            recent_history = list(avoid_history)
             avoid_part = "НЕ создавай вопросы, похожие на эти (сравнивай по смыслу, теме и структуре!):\n" + "\n".join([f"- {q}" for q in recent_history]) + "\n"
 
         return (
@@ -255,7 +255,7 @@ class QuizAgent:
         avoid_part = ""
         if avoid_history:
             # Ограничиваем и обрезаем историю для экономии токенов
-            recent_history = list(avoid_history)[-15:]
+            recent_history = list(avoid_history)
             shortened_history = [
                 q[:100] + "..." if len(q) > 100 else q
                 for q in recent_history
@@ -353,7 +353,7 @@ class QuizAgent:
         avoid_part = ""
         if avoid_history:
             # Ограничиваем до 10 последних вопросов
-            recent_history = list(avoid_history)[-15:]
+            recent_history = list(avoid_history)
 
             # Обрезаем слишком длинные вопросы в истории, чтобы не тратить токены
             # Нам важна суть, а не полный текст
