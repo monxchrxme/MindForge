@@ -352,8 +352,6 @@ class OrchestratorAgent:
         )
 
         try:
-            # Используем низкую температуру для детерминированного выбора
-            # (Предполагается, что вы обновили gigachat_client.py для поддержки temperature)
             decision = self.client.generate_json(router_prompt, temperature=0.1)
 
             mode = decision.get("mode", "THEORY_MODE").upper()
