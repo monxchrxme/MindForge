@@ -123,8 +123,23 @@ class OrchestratorAgent:
 
             # Восстанавливаем состояние из кэша
             if isinstance(cached_data, dict) and "concepts" in cached_data:
+
                 self.context["concepts"] = cached_data["concepts"]
                 logger.info(f"✓ Restored {len(self.context['concepts'])} concepts from V2 cache")
+                metadata = cached_data.get("metadata", {})
+
+                # В зависимости от того, как вы сохраняли (content_type или mode)
+                # В _save_to_cache_v2 вы использовали ключ "content_type"
+                saved_mode = metadata.get("content_type", "THEORY_MODE")
+
+                # Приводим к формату, который ждет GenerateQuiz (CODE_MODE / THEORY_MODE / etc)
+                # Если в кэше сохранено "code", превращаем в "CODE_MODE"
+                if saved_mode.lower() == "code":
+                    saved_mode = "CODE_MODE"
+                elif saved_mode.lower() == "theory":
+                    saved_mode = "THEORY_MODE"
+
+                self.context["content_mode"] = saved_mode
             else:
                 self.context["concepts"] = cached_data if isinstance(cached_data, list) else []
                 logger.info("✓ Restored from Legacy cache")

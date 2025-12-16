@@ -158,20 +158,20 @@ class ExplainAgent:
 
         # ============ МЕТРИКА 4: TYPE MATCH (Соответствие типу) ============
         if content_type == ContentTypeEnum.THEORY:
-            sentences = explanation.split('.')
-            # Фильтруем: минимум 5 слов в предложении = считаем "полным"
-            full_sentences = len([s for s in sentences if len(s.split()) >= 5])
-
-            # НОВОЕ: Требуем минимум 2 полных предложения вместо 3
-            type_match = full_sentences >= 2
-            logger.debug(f"  4️⃣  TYPE_MATCH (THEORY): {sentences} sentences. Status: {'✅' if type_match else '❌'}")
+            word_count = len(explanation.split())
+            type_match = (word_count > 7)
+            logger.debug(
+                f"  4️⃣  TYPE_MATCH (THEORY): {len(explanation.split())} words. Status: {'✅' if type_match else '❌'}")
 
 
         elif content_type == ContentTypeEnum.CODE:
             # Код должен содержать ключевые слова программирования
             code_keywords = [
-                'код', 'функция', 'переменная', 'цикл', 'условие', 'значение',
-                'return', 'error', 'ошибка', 'логик', 'синтакси', 'типы данных'
+                "код", "функция", "переменная", "цикл", "return", "error", "синтаксис",
+                "типы данных", "def ", "class ", "return", "import ", "print(", "{", "}",
+                "function", "var ", "const ", "if ", "for ", "while ", "=>",
+                "async ", "await ", "try ", "except ", "finally ", "lambda",
+                "=>", "==", "!=", "===", "!==", "//"
             ]
             type_match = any(kw in explanation.lower() for kw in code_keywords)
             logger.debug(f"  4️⃣  TYPE_MATCH (CODE): Code keywords found. Status: {'✅' if type_match else '❌'}")
@@ -179,9 +179,8 @@ class ExplainAgent:
         else:  # SHORT
             # Короткий ответ должен быть действительно кратким
             word_count = len(explanation.split())
-            sentence_count = len([s for s in explanation.split('.') if s.strip()])
-            # Проходит если: <= 50 слов ИЛИ (2-3 предложения И четко разделены)
-            type_match = (word_count <= 50) or (2 <= sentence_count <= 3)
+            # Проходит если: <= 7 слов
+            type_match = (word_count <= 7)
             logger.debug(
                 f"  4️⃣  TYPE_MATCH (SHORT): {len(explanation.split())} words. Status: {'✅' if type_match else '❌'}")
 
@@ -271,7 +270,7 @@ class ExplainAgent:
             )
             logger.info("🎬 ACTION: Generating initial explanation (Attempt 1/4)...")
 
-            response_data = self.client.generate_json(prompt)
+            response_data = self.client.generate_json(prompt, temperature=0.9)
 
             # Техническая валидация структуры
             if not self._validate_response_structure(response_data):
@@ -328,7 +327,7 @@ class ExplainAgent:
                     if not quality['details']['vivid']:
                         correction_instruction += "Сделай образ ярче и визуальнее. "
                     if not quality['details']['type_match']:
-                        correction_instruction += "Лучше соотноси с типом контента. "
+                        correction_instruction += "Соотнеси с типом контента. "
                     if not quality['details']['correct_answer']:
                         correction_instruction += (
                             f"КРИТИЧНО: Упомяни правильный ответ '{correct_ans}' в пояснении. "
@@ -337,7 +336,7 @@ class ExplainAgent:
                     improved_prompt = prompt + correction_instruction
 
                     # Повторная генерация
-                    response_data = self.client.generate_json(improved_prompt)
+                    response_data = self.client.generate_json(improved_prompt, temperature=0.9)
 
                     if not self._validate_response_structure(response_data):
                         logger.warning("⚠️  Regenerated response structure invalid")
@@ -427,7 +426,9 @@ class ExplainAgent:
 
         # Маркеры кода
         code_markers = [
-            "def ", "class ", "return", "import ", "print(", "{", "}",
+            "код", "функция", "переменная", "цикл", "return", "error", "синтаксис",
+            "типы данных", "def ", "class ", "return", "import ", "print(", "{", "}",
+            "def ", "класс" ,"class ", "return", "import ", "print(", "{", "}",
             "function", "var ", "const ", "if ", "for ", "while ", "=>",
             "async ", "await ", "try ", "except ", "finally ", "lambda",
             "=>", "==", "!=", "===", "!==", "//"
@@ -437,7 +438,7 @@ class ExplainAgent:
             return ContentTypeEnum.CODE
 
         # Эвристика для коротких ответов
-        if len(combined_text.split()) < 25:
+        if len(combined_text.split()) <= 7:
             return ContentTypeEnum.SHORT
 
         return ContentTypeEnum.THEORY
@@ -455,7 +456,7 @@ class ExplainAgent:
                     "Используй аналогии, термины и сторителлинг при надобности. " # было "Используй аналогии и сторителлинг"
                     "Объясни концепцию через 'почему', а не просто 'что'. "
                     "Сделай объяснение доступным и запоминающимся."
-                    "Используй 3-5 предложений для объяснения ответа, но при явной надобности используй большее количество."
+#                    "Используй 3-5 предложений для объяснения ответа, но при явной надобности используй большее количество."
                 )
             },
             ContentTypeEnum.CODE: {
@@ -464,7 +465,7 @@ class ExplainAgent:
                     "Разбери код построчно. "
                     "Укажи на логическую ошибку четко и ясно. "
                     "Приведи исправленный сниппет кода с объяснением."
-                    "Используй 3-5 предложений для объяснения ответа, но при явной надобности используй большее количество."
+#                    "Используй 3-5 предложений для объяснения ответа, но при явной надобности используй большее количество."
                 )
             },
             ContentTypeEnum.SHORT: {
@@ -472,7 +473,7 @@ class ExplainAgent:
                 "instruction": (
                     "Будь предельно краток. "
                     "Используй формат 'Факт -> Причина'. "
-                    "ТРЕБОВАНИЕ: максимум 35-40 слов. Если нужно больше - используй 3 предложения."
+#                    "ТРЕБОВАНИЕ: максимум 35-40 слов. Если нужно больше - используй 3 предложения."
                 )
             }
         }
@@ -495,9 +496,9 @@ class ExplainAgent:
         if content_type == ContentTypeEnum.SHORT:
             sentence_instruction = "Используй 2-3 предложения максимум (35-40 слов). Будь лаконичен."
         elif content_type == ContentTypeEnum.THEORY:
-            sentence_instruction = "Используй 3-4 предложения (80-120 слов). Развернуто и понятно."
+            sentence_instruction = "Объяснение: МИНИМУМ 350 символов (обычно 450-600 символов)."
         else:  # CODE
-            sentence_instruction = "Используй 3-5 предложений для объяснения ответа."
+            sentence_instruction = "Объяснение: МИНИМУМ 350 символов (обычно 450-600 символов)."
 
         if content_type == ContentTypeEnum.CODE:
             mentor_title = "по программированию и анализу кода"
@@ -513,12 +514,25 @@ class ExplainAgent:
             f"Ответ пользователя: {user_ans}\n"
             f"Правильный ответ: {correct_ans}\n\n"
             f"ТРЕБОВАНИЯ (ОБЯЗАТЕЛЬНЫЕ):\n"
-            f"1. Твое пояснение ДОЛЖНО содержать правильный ответ '{correct_ans}'\n"
-            f"2. Объясни, почему '{user_ans}' неправильный\n"
-            f"3. Подробно объясни, почему '{correct_ans}' правильный\n"
-            f"4. Используй стратегию: {strategy['name']}\n"
-            f"5. {strategy['instruction']}\n\n"
-            f"6. {sentence_instruction}\n"
+            f"1.1. Твое пояснение ДОЛЖНО содержать правильный ответ '{correct_ans}'\n"
+            f"1.2. Объясни, почему '{user_ans}' неправильный\n"
+            f"1.3. Подробно объясни, почему '{correct_ans}' правильный\n"
+            f"1.4. Используй стратегию: {strategy['name']}\n"
+            f"1.5. {strategy['instruction']}\n\n"
+            f"1.6. {sentence_instruction}\n"
+            f"1.7 Начни с четкого указания, почему неправильный ответ ошибочен\n"
+            f" - Объясни логику и теорию, стоящую за правильным ответом\n"
+            f" - Покажи связи между концепциями и взаимосвязи\n"
+            f" - Объясни ключевые различия между неправильным и правильным\n"
+            f" - Убедись, что объяснение ЖИВОЕ, ПОНЯТНОЕ и ОБШИРНОЕ\n"
+            f" - БЕЗ образов и ассоциаций в этой части\n"
+            f" - Текст должен быть четким с ПРОБЕЛАМИ между всеми словами\n\n"
+            f"2. Мнемонический образ: 2-4 предложения.\n"
+            f"   - Создай АБСУРДНЫЙ, СМЕШНОЙ и НЕЛЕПЫЙ образ\n"
+            f"   - Используй забавные аналогии из реальной жизни\n"
+            f"   - Преувеличивай, добавляй сюрреализм и иронию\n"
+            f"   - Образ должен быть связан с правильным синтаксисом, но смешно\n"
+            f"   - Чем запоминаемее и забавнее - тем лучше\n"
             f"ФОРМАТ ОТВЕТА (ОБЯЗАТЕЛЬНЫЙ):\n"
             f"Верни ТОЛЬКО валидный JSON без кода и комментариев:\n"
             f"{{\n"
