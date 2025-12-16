@@ -1,40 +1,11 @@
-
-
 from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
+from agents.tools_parser.enrichment_tool import ConceptEnrichmentTool
 from utils.hashing import compute_hash
 import logging
 from typing import Any, Dict, List
-from langchain.tools import tool
 
 logger = logging.getLogger(__name__)
-
-
-@tool
-def enrich_concept_definition(term: str, basic_definition: str, context: str = "") -> str:
-    """
-    Инструмент для обогащения определения концепта дополнительными свойствами и связями.
-
-    Args:
-        term: Название концепта
-        basic_definition: Базовое определение из текста
-        context: Дополнительный контекст (если есть частичные свойства/связи)
-
-    Returns:
-        Обогащённое определение с ключевыми свойствами и связями
-    """
-    enrichment_prompt = (
-        f"Вы — эксперт-методист. Дан концепт '{term}' с базовым определением: '{basic_definition}'.\n"
-        f"Дополнительный контекст: {context if context else 'отсутствует'}.\n\n"
-        "Ваша задача — обогатить это определение:\n"
-        "1. Добавить 2-3 ключевых свойства или характеристики концепта (общеизвестные, проверенные факты).\n"
-        "2. Указать важнейшие связи с другими релевантными понятиями (противопоставление, применение, примеры).\n"
-        "3. Сохранить исходное определение, дополнив его, а не переписывая.\n\n"
-        "Верните ТОЛЬКО обогащённое определение одним абзацем, без заголовков и пояснений."
-    )
-    # Здесь предполагается, что client доступен через глобальный контекст или передаётся
-    # В реальной реализации нужно передать client через замыкание или другой механизм
-    return enrichment_prompt  # Заглушка для демонстрации структуры
 
 
 class ParserAgent:
@@ -47,6 +18,10 @@ class ParserAgent:
         self.client = client
         self.cache_manager = cache_manager
         self.cache_enabled = cache_enabled
+
+        # Инициализируем enrichment tool
+        self.enrichment_tool = ConceptEnrichmentTool(client)
+        logger.info(f"✅ Enrichment tool initialized: {self.enrichment_tool.name}")
 
     def parse_note(self, text: str) -> List[Dict[str, Any]]:
         """
@@ -104,7 +79,7 @@ class ParserAgent:
         )
 
         try:
-            result = self.client.generate_json(prompt)
+            result = self.client.generate_json(prompt, temperature=0.2)
 
             # DEBUG: Логирование сырого результата от LLM
             import json
@@ -124,16 +99,13 @@ class ParserAgent:
 
                     # Проверка обязательных полей
                     if term and definition:
-                        # Если определение требует обогащения, вызываем @tool
+                        # Если определение требует обогащения, вызываем tool
                         if needs_enrichment:
-                            logger.info(f"Enriching concept: {term}")
-                            try:
-                                # Вызов инструмента обогащения
-                                enriched_def = self._enrich_with_tool(term, definition, text)
+                            logger.info(f"🔧 Enriching concept: {term}")
+                            enriched_def = self._enrich_with_tool(term, definition, text[:300])
+                            if enriched_def:
                                 definition = enriched_def
-                                logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
-                            except Exception as enrich_error:
-                                logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
+                                logger.info(f"✅ Enriched '{term}': {definition[:100]}...")
 
                         # Формируем чистый словарь
                         clean_item = {
@@ -166,44 +138,14 @@ class ParserAgent:
             "3. Если свойства и связи частично упомянуты в тексте — также пометьте 'needs_enrichment': true для дополнения недостающими деталями.\n\n"
             "ДОПОЛНИТЕЛЬНО ДЛЯ ТЕХНИЧЕСКИХ ЗАМЕТОК:\n"
             "4. Если в тексте встречаются фрагменты кода (функции, классы, алгоритмы, паттерны), которые иллюстрируют концепт:\n"
-            "  • Выделите связь между теорией и кодом.\n"
-            "  • Включите фрагмент кода в поле code_snippet (точная копия из текста).\n"
-            "  • Если концепт чисто теоретический и не имеет кода — оставьте code_snippet как null.\n\n"
+            "   • Выделите связь между теорией и кодом.\n"
+            "   • Включите фрагмент кода в поле code_snippet (точная копия из текста).\n"
+            "   • Если концепт чисто теоретический и не имеет кода — оставьте code_snippet как null.\n\n"
             "Структура определения (всё в поле definition):\n"
             "— Начните с чёткой формулировки понятия.\n"
             "— Далее перечислите ключевые свойства и характеристики (из текста).\n"
             "— Если информации достаточно, завершите описанием важнейших связей с другими концептами.\n"
             "— Если есть иллюстрирующий код — упомяните его связь с теорией в definition.\n\n"
-            "Примеры правильного подхода:\n\n"
-            "Пример 1 (теоретический концепт — только базовое определение, требует обогащения):\n"
-            "Исходный текст: «Фотосинтез — процесс преобразования света в энергию».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Фотосинтез\",\n"
-            "  \"definition\": \"Фотосинтез — процесс преобразования света в энергию.\",\n"
-            "  \"code_snippet\": null,\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
-            "Пример 2 (технический концепт с кодом — полная информация):\n"
-            "Исходный текст: «Декоратор @staticmethod в Python создаёт статические методы класса, не требующие self или cls. "
-            "Применяется для утилитарных функций класса. Пример: @staticmethod def foo(): pass».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Декоратор @staticmethod\",\n"
-            "  \"definition\": \"Декоратор @staticmethod в Python используется для создания статических методов класса — методов, которые не требуют доступа к экземпляру (self) или классу (cls). "
-            "Применяется для вспомогательных функций, логически связанных с классом, но не зависящих от его состояния. Часто используется вместе с @classmethod для организации утилит.\",\n"
-            "  \"code_snippet\": \"@staticmethod\\ndef foo():\\n    pass\",\n"
-            "  \"needs_enrichment\": false\n"
-            "}\n\n"
-            "Пример 3 (алгоритм с кодом — частичная информация, требует обогащения):\n"
-            "Исходный текст: «Бинарный поиск работает на отсортированных массивах. Код: while left <= right: mid = (left+right)//2...».\n"
-            "Ваш вывод:\n"
-            "{\n"
-            "  \"term\": \"Бинарный поиск\",\n"
-            "  \"definition\": \"Бинарный поиск работает на отсортированных массивах.\",\n"
-            "  \"code_snippet\": \"while left <= right:\\n    mid = (left+right)//2\\n    ...\",\n"
-            "  \"needs_enrichment\": true\n"
-            "}\n\n"
             "Формат вывода:\n"
             "— JSON-список словарей с полями term, definition, code_snippet и needs_enrichment.\n"
             "— Не используйте Markdown-блоки, вводные комментарии или пояснения.\n"
@@ -215,15 +157,14 @@ class ParserAgent:
         )
 
         try:
-            result = self.client.generate_json(prompt)
+            result = self.client.generate_json(prompt, temperature=0.2)
 
-            # >>> ВСТАВИТЬ ЛОГИРОВАНИЕ ЗДЕСЬ <<<
+            # DEBUG: Логирование
             import json
             logger.info("=" * 40)
-            logger.info("DEBUG PARSER RAW RESULT:")
+            logger.info("DEBUG PARSER RAW RESULT (CODE MODE):")
             logger.info(json.dumps(result, ensure_ascii=False, indent=2))
             logger.info("=" * 40)
-            # >>> КОНЕЦ ВСТАВКИ <<<
 
             # Валидация и очистка + обогащение при необходимости
             valid_items = []
@@ -236,16 +177,13 @@ class ParserAgent:
                     needs_enrichment = item.get("needs_enrichment", False)
 
                     if term and (definition or code):
-                        # Если определение требует обогащения, вызываем @tool
+                        # Если определение требует обогащения, вызываем tool
                         if needs_enrichment and definition:
-                            logger.info(f"Enriching concept: {term}")
-                            try:
-                                # Вызов инструмента обогащения
-                                enriched_def = self._enrich_with_tool(term, definition, text)
+                            logger.info(f"🔧 Enriching concept: {term}")
+                            enriched_def = self._enrich_with_tool(term, definition, text[:300])
+                            if enriched_def:
                                 definition = enriched_def
-                                logger.info(f"Enriched definition for '{term}': {definition[:100]}...")
-                            except Exception as enrich_error:
-                                logger.warning(f"Failed to enrich '{term}': {enrich_error}. Using original definition.")
+                                logger.info(f"✅ Enriched '{term}': {definition[:100]}...")
 
                         # Явно формируем чистый словарь
                         clean_item = {
@@ -262,30 +200,30 @@ class ParserAgent:
             logger.error(f"Code parsing failed: {e}")
             return []
 
-    def _enrich_with_tool(self, term: str, basic_definition: str, full_text: str) -> str:
+    def _enrich_with_tool(self, term: str, basic_definition: str, context: str) -> str:
         """
         Внутренний метод для вызова инструмента обогащения определений.
-        Использует декоратор @tool через LLM.
+        Использует ConceptEnrichmentTool.
+
+        :param term: Название концепта
+        :param basic_definition: Базовое определение
+        :param context: Контекст из исходного текста (первые 300 символов)
+        :return: Обогащённое определение или исходное (если обогащение не удалось)
         """
-        enrichment_prompt = (
-            f"Вы — эксперт-методист. Дан концепт '{term}' с определением: '{basic_definition}'.\n"
-            f"Контекст из исходного текста: {full_text[:500]}...\n\n"
-            "Ваша задача — обогатить это определение:\n"
-            "1. Сохраните исходное определение.\n"
-            "2. Добавьте 2-3 ключевых свойства или характеристики (общеизвестные факты из вашей базы знаний).\n"
-            "3. Укажите важнейшие связи с другими понятиями (противопоставление, применение, примеры).\n"
-            "4. Используйте только проверенные, общепринятые в науке/технике факты.\n\n"
-            "ФОРМАТ: Верните ТОЛЬКО обогащённое определение одним связным абзацем, без заголовков, маркеров и пояснений.\n"
-        )
-
         try:
-            # Используем обычный generate вместо generate_json для текстового ответа
-            enriched = self.client.generate(enrichment_prompt)
+            result = self.enrichment_tool.execute(
+                term=term,
+                basic_definition=basic_definition,
+                context=context
+            )
 
-            # Очистка от возможных артефактов форматирования
-            enriched = enriched.strip().replace('\n\n', ' ').replace('  ', ' ')
+            if result.get("success"):
+                return result.get("enriched_definition", basic_definition)
+            else:
+                error = result.get("error", "Unknown error")
+                logger.warning(f"⚠️ Enrichment failed for '{term}': {error}, using original")
+                return basic_definition
 
-            return enriched if enriched else basic_definition
         except Exception as e:
-            logger.error(f"Enrichment tool failed: {e}")
+            logger.error(f"Enrichment tool error for '{term}': {e}")
             return basic_definition
