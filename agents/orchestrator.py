@@ -131,7 +131,6 @@ class OrchestratorAgent:
 
             # Даже при кэше концептов, квиз лучше генерировать свежий,
             # но можно сделать shortcut и сразу вызвать генерацию квиза.
-            # Для чистоты эксперимента запустим агента, но с "предзаполненным" знанием.
             logger.info("🤖 Starting Agent with Pre-loaded Memory...")
         else:
             logger.info("❄️ COLD START: No cache or forced reparse. Agent needs to work.")

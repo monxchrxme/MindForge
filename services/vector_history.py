@@ -16,10 +16,7 @@ class VectorHistoryManager:
     """
 
     def __init__(self, persist_directory: str = "data/vector_db"):
-        # БЫЛО (работает в памяти или старый синтаксис):
-        # self.client = chromadb.Client(Settings(...))
 
-        # СТАЛО (гарантированно сохраняет на диск):
         self.client = chromadb.PersistentClient(path=persist_directory)
 
         # Используем модель, которая понимает РУССКИЙ язык
