@@ -11,6 +11,7 @@ from services.gigachat_client import GigaChatClient
 from services.cache_manager import CacheManager
 from services.vector_history import VectorHistoryManager
 from utils.hashing import compute_hash
+from utils.performance import measure_time
 
 # Настраиваем логгер
 logger = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ class OrchestratorAgent:
 
         self.config = config
         self.cache_manager = cache_manager
+
+
 
         # 1. Инициализация клиента (Dependency Injection)
         llm_settings = config.get("llm_settings", {})
@@ -83,6 +86,7 @@ class OrchestratorAgent:
         # Статистика ответов
         self.user_score: int = 0
         self.total_questions_answered: int = 0
+
 
         logger.info("✓ Orchestrator ready to reason.")
         logger.info("=" * 70)
